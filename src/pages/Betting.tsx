@@ -5,6 +5,8 @@ import { AlertCircle, CheckCircle, Lock, Plus, Trash2, List } from 'lucide-react
 import { database } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
 
+import { API_BASE_URL } from '../constants';
+
 interface BetItem {
   number: string;
   amount: string;
@@ -22,7 +24,7 @@ const Betting = () => {
 
   useEffect(() => {
     // Initial fetch from API
-    fetch('/api/status')
+    fetch(`${API_BASE_URL}/api/status`)
       .then((res) => res.json())
       .then((data) => setStatus(data.status));
 
@@ -149,7 +151,7 @@ const Betting = () => {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/bets', {
+      const res = await fetch(`${API_BASE_URL}/api/bets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bets: validBets }),

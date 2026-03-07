@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { database, auth } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
+import { API_BASE_URL } from '../constants';
 
 interface User {
   id: number;
@@ -29,7 +30,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshUser = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch(`${API_BASE_URL}/api/auth/me`);
       if (res.ok) {
         const data = await res.json();
         setUser(data);
@@ -78,7 +79,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (phone: string, password: string) => {
     const { device_id, install_time } = getDeviceInfo();
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password, device_id, install_time }),
@@ -95,7 +96,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (phone: string, password: string, username?: string) => {
     const { device_id, install_time } = getDeviceInfo();
-    const res = await fetch('/api/auth/register', {
+    const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password, username, device_id, install_time }),
@@ -111,7 +112,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST' });
     localStorage.removeItem('app_pin');
     setUser(null);
     navigate('/login');

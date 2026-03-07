@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ArrowUpCircle, ArrowDownCircle, CheckCircle, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../constants';
 
 const Wallet = () => {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ const Wallet = () => {
     }
 
     try {
-      const res = await fetch('/api/transactions', {
+      const res = await fetch(`${API_BASE_URL}/api/transactions`, {
         method: 'POST',
         body: formData,
       });

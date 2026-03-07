@@ -5,6 +5,8 @@ import { Wallet, TrendingUp, History, AlertCircle } from 'lucide-react';
 import { database } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
 
+import { API_BASE_URL } from '../constants';
+
 const Home = () => {
   const { user } = useAuth();
   const [status, setStatus] = useState('loading');
@@ -12,7 +14,7 @@ const Home = () => {
 
   useEffect(() => {
     // Initial fetch from API
-    fetch('/api/status')
+    fetch(`${API_BASE_URL}/api/status`)
       .then((res) => res.json())
       .then((data) => setStatus(data.status));
 
@@ -25,7 +27,7 @@ const Home = () => {
       }
     });
 
-    fetch('/api/bets')
+    fetch(`${API_BASE_URL}/api/bets`)
       .then((res) => res.json())
       .then((data) => setRecentBets(data.slice(0, 3)));
 
