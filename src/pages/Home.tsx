@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { Wallet, TrendingUp, History, AlertCircle } from 'lucide-react';
+import { database } from '../lib/firebase';
+import { ref, onValue } from 'firebase/database';
 
 const Home = () => {
   const { user } = useAuth();
@@ -9,13 +11,25 @@ const Home = () => {
   const [recentBets, setRecentBets] = useState([]);
 
   useEffect(() => {
+    // Initial fetch from API
     fetch('/api/status')
       .then((res) => res.json())
       .then((data) => setStatus(data.status));
 
+    // Real-time listener for market status
+    const statusRef = ref(database, 'settings/marketStatus');
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        setStatus(val);
+      }
+    });
+
     fetch('/api/bets')
       .then((res) => res.json())
       .then((data) => setRecentBets(data.slice(0, 3)));
+
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -79,7 +93,7 @@ const Home = () => {
                       {bet.number}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">2D</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{bet.number.length === 3 ? '3D' : '2D'}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(bet.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>

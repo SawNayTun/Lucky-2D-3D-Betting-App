@@ -62,11 +62,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, [user?.id]);
 
+  const getDeviceInfo = () => {
+    let deviceId = localStorage.getItem('device_id');
+    let installTime = localStorage.getItem('install_time');
+    
+    if (!deviceId) {
+      deviceId = 'dev_' + Date.now() + Math.random().toString(36).substr(2, 9);
+      installTime = new Date().toISOString();
+      localStorage.setItem('device_id', deviceId);
+      localStorage.setItem('install_time', installTime);
+    }
+    
+    return { device_id: deviceId, install_time: installTime };
+  };
+
   const login = async (phone: string, password: string) => {
+    const { device_id, install_time } = getDeviceInfo();
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, password }),
+      body: JSON.stringify({ phone, password, device_id, install_time }),
     });
     
     if (!res.ok) {
@@ -79,10 +94,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const register = async (phone: string, password: string, username?: string) => {
+    const { device_id, install_time } = getDeviceInfo();
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, password, username }),
+      body: JSON.stringify({ phone, password, username, device_id, install_time }),
     });
 
     if (!res.ok) {
@@ -96,6 +112,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
+    localStorage.removeItem('app_pin');
     setUser(null);
     navigate('/login');
   };

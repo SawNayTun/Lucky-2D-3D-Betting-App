@@ -10,23 +10,25 @@ import History from './pages/History';
 import Wallet from './pages/Wallet';
 import Profile from './pages/Profile';
 
+import PinLock from './components/PinLock';
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading } = useAuth();
   if (isLoading) return <div className="flex justify-center items-center h-screen dark:bg-gray-900 dark:text-white">Loading...</div>;
   if (!user) return <Navigate to="/login" />;
-  return <>{children}</>;
+  return <PinLock>{children}</PinLock>;
 };
 
 const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route element={<Layout />}>
-        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/betting" element={<ProtectedRoute><Betting /></ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-        <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+        <Route path="/" element={<Home />} />
+        <Route path="/betting" element={<Betting />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/wallet" element={<Wallet />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
     </Routes>
   );

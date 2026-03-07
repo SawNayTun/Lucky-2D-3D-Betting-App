@@ -13,6 +13,8 @@ db.exec(`
     username TEXT,
     password TEXT NOT NULL,
     balance REAL DEFAULT 0,
+    device_id TEXT,
+    install_time TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -48,6 +50,19 @@ db.exec(`
 const checkSettings = db.prepare("SELECT * FROM settings WHERE key = 'market_status'").get();
 if (!checkSettings) {
   db.prepare("INSERT INTO settings (key, value) VALUES ('market_status', 'open')").run();
+}
+
+// Migrations
+try {
+  db.exec("ALTER TABLE users ADD COLUMN device_id TEXT");
+} catch (e) {
+  // Column might already exist
+}
+
+try {
+  db.exec("ALTER TABLE users ADD COLUMN install_time TEXT");
+} catch (e) {
+  // Column might already exist
 }
 
 export default db;

@@ -45,6 +45,21 @@ onValue(usersRef, (snapshot) => {
   }
 });
 
+// Sync Market Status from Firebase
+const marketStatusRef = ref(database, 'settings/marketStatus');
+onValue(marketStatusRef, (snapshot) => {
+  const status = snapshot.val();
+  if (status) {
+    const stmt = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('market_status', ?)");
+    try {
+      stmt.run(status);
+      console.log(`Market status updated to: ${status}`);
+    } catch (err) {
+      console.error('Failed to sync market status from Firebase:', err);
+    }
+  }
+});
+
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -83,7 +98,7 @@ async function startServer() {
 
   // Register
   app.post('/api/auth/register', async (req: Request, res: Response) => {
-    const { phone, username, password } = req.body;
+    const { phone, username, password, device_id, install_time } = req.body;
     if (!phone || !password) return res.status(400).json({ error: 'Phone and password required' });
 
     try {
@@ -96,8 +111,8 @@ async function startServer() {
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-      const stmt = db.prepare('INSERT INTO users (phone, username, password) VALUES (?, ?, ?)');
-      const info = stmt.run(phone, username || phone, hashedPassword);
+      const stmt = db.prepare('INSERT INTO users (phone, username, password, device_id, install_time) VALUES (?, ?, ?, ?, ?)');
+      const info = stmt.run(phone, username || phone, hashedPassword, device_id || null, install_time || null);
       
       const token = jwt.sign({ id: info.lastInsertRowid, phone }, JWT_SECRET);
       res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
@@ -112,7 +127,7 @@ async function startServer() {
 
   // Login
   app.post('/api/auth/login', async (req: Request, res: Response) => {
-    const { phone, password } = req.body;
+    const { phone, password, device_id, install_time } = req.body;
     const user: any = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
 
     if (!user) {
@@ -121,6 +136,12 @@ async function startServer() {
 
     if (!(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Update device info on login if provided
+    if (device_id || install_time) {
+      const updateStmt = db.prepare('UPDATE users SET device_id = COALESCE(?, device_id), install_time = COALESCE(?, install_time) WHERE id = ?');
+      updateStmt.run(device_id || null, install_time || null, user.id);
     }
 
     const token = jwt.sign({ id: user.id, phone: user.phone }, JWT_SECRET);
@@ -147,10 +168,15 @@ async function startServer() {
     res.json({ status: status ? status.value : 'closed' });
   });
 
-  // Place Bet
-  app.post('/api/bets', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-    const { number, amount } = req.body;
-    const user: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id);
+  // Place Bet (Supports Bulk)
+  app.post('/api/bets', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { bets } = req.body; // Expecting array of { number, amount }
+    
+    if (!bets || !Array.isArray(bets) || bets.length === 0) {
+      return res.status(400).json({ error: 'No bets provided' });
+    }
+
+    const user: any = db.prepare('SELECT username, phone, balance FROM users WHERE id = ?').get(req.user.id);
     
     // Check market status
     const status: any = db.prepare("SELECT value FROM settings WHERE key = 'market_status'").get();
@@ -158,7 +184,9 @@ async function startServer() {
       return res.status(400).json({ error: 'Market is closed' });
     }
 
-    if (user.balance < amount) {
+    const totalAmount = bets.reduce((sum, b) => sum + Number(b.amount), 0);
+
+    if (user.balance < totalAmount) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
@@ -166,15 +194,74 @@ async function startServer() {
     const updateBalanceStmt = db.prepare('UPDATE users SET balance = balance - ? WHERE id = ?');
 
     const transaction = db.transaction(() => {
-      betStmt.run(req.user.id, number, amount);
-      updateBalanceStmt.run(amount, req.user.id);
+      const betIds = bets.map(b => {
+        const info = betStmt.run(req.user.id, b.number, b.amount);
+        return info.lastInsertRowid;
+      });
+      updateBalanceStmt.run(totalAmount, req.user.id);
+      return betIds;
     });
 
     try {
-      transaction();
+      const betIds = transaction();
       const newBalance: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id);
+      
+      // 1. Update Firebase Balance immediately to prevent sync listener from reverting it
+      const userBalanceRef = ref(database, `users/${req.user.id}/balance`);
+      await set(userBalanceRef, newBalance.balance);
+      
+      // 2. Generate Formatted Report for Dealer
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-GB');
+      const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      
+      let reportText = `--- ${user?.username || user?.phone} ---\n`;
+      reportText += `နေ့စွဲ - ${dateStr} (${timeStr})\n`;
+      reportText += `--------------------\n`;
+      
+      bets.forEach((b, index) => {
+        reportText += `${b.number} = ${b.amount}\n`;
+        if ((index + 1) % 10 === 0 && index !== bets.length - 1) {
+          reportText += `--------------------\n`;
+        }
+      });
+      
+      reportText += `--------------------\n`;
+      reportText += `စုစုပေါင်း: (${bets.length}) ကွက် - ${totalAmount} ကျပ်`;
+
+      // 3. Push Report to Firebase for Dealer Software
+      const reportsRef = ref(database, 'reports');
+      const newReportRef = push(reportsRef);
+      
+      await set(newReportRef, {
+        userId: req.user.id,
+        username: user?.username || 'Unknown',
+        phone: user?.phone || 'Unknown',
+        reportText,
+        totalAmount,
+        betCount: bets.length,
+        createdAt: Date.now()
+      });
+
+      // 4. Also push individual bets for detailed tracking if needed
+      const firebaseBetsRef = ref(database, 'bets');
+      for (let i = 0; i < bets.length; i++) {
+        const b = bets[i];
+        const newBetRef = push(firebaseBetsRef);
+        await set(newBetRef, {
+          id: betIds[i],
+          userId: req.user.id,
+          username: user?.username || 'Unknown',
+          number: b.number,
+          amount: Number(b.amount),
+          status: 'pending',
+          createdAt: Date.now()
+        });
+      }
+
       res.json({ success: true, newBalance: newBalance.balance });
     } catch (err) {
+      console.error('Bet error:', err);
       res.status(500).json({ error: 'Bet failed' });
     }
   });
@@ -183,6 +270,32 @@ async function startServer() {
   app.get('/api/bets', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
     const bets = db.prepare('SELECT * FROM bets WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
     res.json(bets);
+  });
+
+  // Delete Individual Bet
+  app.delete('/api/bets/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    try {
+      const stmt = db.prepare('DELETE FROM bets WHERE id = ? AND user_id = ?');
+      const info = stmt.run(id, req.user.id);
+      if (info.changes === 0) {
+        return res.status(404).json({ error: 'Bet not found or unauthorized' });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete bet' });
+    }
+  });
+
+  // Clear All Bet History
+  app.delete('/api/bets', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const stmt = db.prepare('DELETE FROM bets WHERE user_id = ?');
+      stmt.run(req.user.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to clear history' });
+    }
   });
 
   // Request Top-up/Withdraw
@@ -200,22 +313,20 @@ async function startServer() {
       const transactionRef = ref(database, 'transactions');
       const newTransactionRef = push(transactionRef);
       
-      const fullImageUrl = proofImage ? `${req.protocol}://${req.get('host')}${proofImage}` : null;
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+      const fullImageUrl = proofImage ? `${baseUrl}${proofImage}` : null;
       
       // Get user details for Firebase
       const user: any = db.prepare('SELECT username, phone FROM users WHERE id = ?').get(req.user.id);
 
       await set(newTransactionRef, {
-        id: info.lastInsertRowid,
         userId: req.user.id,
         username: user?.username || 'Unknown',
-        phone: user?.phone || req.user.phone,
-        type,
         amount: Number(amount),
-        method,
         proofImage: fullImageUrl,
         status: 'pending',
-        createdAt: Date.now()
+        timestamp: new Date().toISOString(),
+        type: type
       });
 
       res.json({ success: true });
