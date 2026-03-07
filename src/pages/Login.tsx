@@ -86,7 +86,12 @@ const Login = () => {
       </button>
 
       <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 transition-colors duration-200">
-        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800 dark:text-white">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">ကြိုဆိုပါသည်</p>
+        </div>
+
+        <h2 className="text-xl font-bold text-center mb-6 text-gray-800 dark:text-white">
           {isRegister ? 'အကောင့်သစ်ဖွင့်ရန်' : 'အကောင့်ဝင်ရန်'}
         </h2>
         
