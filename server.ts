@@ -170,7 +170,7 @@ async function startServer() {
 
   // Place Bet (Supports Bulk)
   app.post('/api/bets', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-    const { bets } = req.body; // Expecting array of { number, amount }
+    const { bets, dealerId } = req.body; // Expecting array of { number, amount } and dealerId
     
     if (!bets || !Array.isArray(bets) || bets.length === 0) {
       return res.status(400).json({ error: 'No bets provided' });
@@ -206,11 +206,11 @@ async function startServer() {
       const betIds = transaction();
       const newBalance: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id);
       
-      // 1. Update Firebase Balance immediately to prevent sync listener from reverting it
+      // 1. Update Firebase Balance immediately
       const userBalanceRef = ref(database, `users/${req.user.id}/balance`);
       await set(userBalanceRef, newBalance.balance);
       
-      // 2. Generate Formatted Report for Dealer
+      // 2. Generate Formatted Report
       const now = new Date();
       const dateStr = now.toLocaleDateString('en-GB');
       const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -233,17 +233,49 @@ async function startServer() {
       const reportsRef = ref(database, 'reports');
       const newReportRef = push(reportsRef);
       
-      await set(newReportRef, {
+      const reportData = {
         userId: req.user.id,
+        user_id: req.user.id,
+        dealerId: dealerId || null,
+        dealer_id: dealerId || null,
         username: user?.username || 'Unknown',
         phone: user?.phone || 'Unknown',
         reportText,
+        report_text: reportText,
         totalAmount,
+        total_amount: totalAmount,
         betCount: bets.length,
-        createdAt: Date.now()
-      });
+        bet_count: bets.length,
+        createdAt: Date.now(),
+        created_at: Date.now(),
+        status: 'pending'
+      };
 
-      // 4. Also push individual bets for detailed tracking if needed
+      await set(newReportRef, reportData);
+      
+      // Also push to a dealer-specific reports node for easier filtering by dealer software
+      if (dealerId) {
+        const dealerReportsRef = ref(database, `dealer_reports/${dealerId}/${newReportRef.key}`);
+        await set(dealerReportsRef, reportData);
+      }
+
+      // 4. Push to Chat if dealerId is provided
+      if (dealerId) {
+        const chatRef = ref(database, `chats/${dealerId}/${req.user.id}/messages`);
+        const newMessageRef = push(chatRef);
+        await set(newMessageRef, {
+          sender: 'user',
+          text: reportText,
+          timestamp: Date.now(),
+          status: 'pending',
+          isBet: true,
+          reportKey: newReportRef.key,
+          totalAmount,
+          total_amount: totalAmount
+        });
+      }
+
+      // 5. Push individual bets
       const firebaseBetsRef = ref(database, 'bets');
       for (let i = 0; i < bets.length; i++) {
         const b = bets[i];
@@ -251,11 +283,15 @@ async function startServer() {
         await set(newBetRef, {
           id: betIds[i],
           userId: req.user.id,
+          user_id: req.user.id,
+          dealerId: dealerId || null,
+          dealer_id: dealerId || null,
           username: user?.username || 'Unknown',
           number: b.number,
           amount: Number(b.amount),
           status: 'pending',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          created_at: Date.now()
         });
       }
 
@@ -273,7 +309,7 @@ async function startServer() {
   });
 
   // Delete Individual Bet
-  app.delete('/api/bets/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  app.delete('/api/bets/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     try {
       const stmt = db.prepare('DELETE FROM bets WHERE id = ? AND user_id = ?');
@@ -281,6 +317,23 @@ async function startServer() {
       if (info.changes === 0) {
         return res.status(404).json({ error: 'Bet not found or unauthorized' });
       }
+
+      // Also attempt to delete from Firebase bets node
+      const firebaseBetsRef = ref(database, 'bets');
+      onValue(firebaseBetsRef, async (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const keyToDelete = Object.keys(data).find(key => data[key].id === Number(id));
+          if (keyToDelete) {
+            const betData = data[keyToDelete];
+            await set(ref(database, `bets/${keyToDelete}`), null);
+            
+            // If we can find a report that matches this user and time, we could try to delete it
+            // but it's safer to let the user delete the report from the chat.
+          }
+        }
+      }, { onlyOnce: true });
+
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: 'Failed to delete bet' });

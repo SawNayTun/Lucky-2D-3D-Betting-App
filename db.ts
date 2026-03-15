@@ -11,7 +11,9 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     phone TEXT UNIQUE NOT NULL,
     username TEXT,
-    password TEXT NOT NULL,
+    password TEXT,
+    email TEXT UNIQUE,
+    firebase_uid TEXT UNIQUE,
     balance REAL DEFAULT 0,
     device_id TEXT,
     install_time TEXT,
@@ -63,6 +65,20 @@ try {
   db.exec("ALTER TABLE users ADD COLUMN install_time TEXT");
 } catch (e) {
   // Column might already exist
+}
+
+try {
+  db.exec("ALTER TABLE users ADD COLUMN email TEXT UNIQUE");
+} catch (e) {}
+
+try {
+  db.exec("ALTER TABLE users ADD COLUMN firebase_uid TEXT UNIQUE");
+} catch (e) {}
+
+try {
+  db.exec("ALTER TABLE users ALTER COLUMN password DROP NOT NULL");
+} catch (e) {
+  // SQLite doesn't support DROP NOT NULL directly, but we can handle it in the schema for new DBs
 }
 
 export default db;

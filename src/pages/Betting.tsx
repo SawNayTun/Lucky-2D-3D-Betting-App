@@ -21,6 +21,24 @@ const Betting = () => {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('loading');
   const navigate = useNavigate();
+  const [friends, setFriends] = useState<any[]>([]);
+  const [selectedDealerId, setSelectedDealerId] = useState<string>('');
+
+  useEffect(() => {
+    const savedFriends = localStorage.getItem(`dealer_friends_${user?.id}`);
+    if (savedFriends) {
+      const parsedFriends = JSON.parse(savedFriends);
+      setFriends(parsedFriends);
+      
+      // Try to get last dealer or default to first
+      const lastDealerId = localStorage.getItem(`last_dealer_id_${user?.id}`);
+      if (lastDealerId && parsedFriends.some((f: any) => f.id === lastDealerId)) {
+        setSelectedDealerId(lastDealerId);
+      } else if (parsedFriends.length > 0) {
+        setSelectedDealerId(parsedFriends[0].id);
+      }
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     // Initial fetch from API
@@ -121,6 +139,11 @@ const Betting = () => {
       return;
     }
 
+    if (!selectedDealerId) {
+      setError('ဒိုင်ရွေးချယ်ပေးပါ။');
+      return;
+    }
+
     // Filter out empty rows
     const validBets = betList.filter(b => b.number && b.amount);
     
@@ -148,27 +171,39 @@ const Betting = () => {
       return;
     }
 
+    // If no friends, redirect to add dealer
+    if (friends.length === 0) {
+      alert('ဂဏန်းထိုးရန်အတွက် အရင်ဆုံး ဒိုင်တစ်ဦးကို Friend အပ်ပေးပါ။');
+      navigate('/dealer-chat');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bets`, {
+      const response = await fetch(`${API_BASE_URL}/api/bets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bets: validBets }),
+        body: JSON.stringify({ 
+          bets: validBets,
+          dealerId: selectedDealerId 
+        }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!response.ok) {
+        const data = await response.json();
         throw new Error(data.error || 'Bet failed');
       }
 
-      setSuccess(`ဂဏန်း (${validBets.length}) ကွက် အောင်မြင်စွာ ထိုးပြီးပါပြီ။`);
-      setBetList([{ number: '', amount: '' }]);
-      refreshUser(); // Update balance
+      // Success - Redirect to dealer chat to see the sent bet
+      navigate('/dealer-chat', { 
+        state: { 
+          dealerId: selectedDealerId,
+          justSubmitted: true
+        } 
+      });
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -258,6 +293,21 @@ const Betting = () => {
           3D
         </button>
       </div>
+
+      {friends.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">ဒိုင်ရွေးချယ်ရန်</label>
+          <select 
+            value={selectedDealerId}
+            onChange={(e) => setSelectedDealerId(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition text-sm"
+          >
+            {friends.map(f => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {betType === '2D' && !isClosed && (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">

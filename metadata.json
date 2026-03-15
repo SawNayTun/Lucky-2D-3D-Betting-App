@@ -1,5 +1,5 @@
 {
   "name": "အနာဂတ်ကမ္ဘာ2d",
-  "description": "A mobile-first betting application featuring user authentication, wallet management, betting history, and transaction requests.",
-  "requestFramePermissions": []
+  "description": "A mobile-first betting application featuring user authentication, wallet management, betting history, transaction requests, and a direct dealer chat for betting.",
+  "requestFramePermissions": ["camera"]
 }

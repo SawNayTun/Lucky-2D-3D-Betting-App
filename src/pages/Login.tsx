@@ -2,23 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const countryCodes = [
-  { code: '+95', country: 'Myanmar' },
-  { code: '+66', country: 'Thailand' },
-  { code: '+86', country: 'China' },
-  { code: '+856', country: 'Laos' },
-  { code: '+65', country: 'Singapore' },
-  { code: '+60', country: 'Malaysia' },
-  { code: '+81', country: 'Japan' },
-  { code: '+82', country: 'South Korea' },
-  { code: '+91', country: 'India' },
-  { code: '+84', country: 'Vietnam' },
-  { code: '+855', country: 'Cambodia' },
-  { code: '+62', country: 'Indonesia' },
-  { code: '+63', country: 'Philippines' },
-  { code: '+1', country: 'USA' },
+  { code: '+95', country: 'Myanmar', flag: '🇲🇲' },
+  { code: '+66', country: 'Thailand', flag: '🇹🇭' },
+  { code: '+86', country: 'China', flag: '🇨🇳' },
+  { code: '+856', country: 'Laos', flag: '🇱🇦' },
+  { code: '+65', country: 'Singapore', flag: '🇸🇬' },
+  { code: '+60', country: 'Malaysia', flag: '🇲🇾' },
+  { code: '+81', country: 'Japan', flag: '🇯🇵' },
+  { code: '+82', country: 'South Korea', flag: '🇰🇷' },
+  { code: '+91', country: 'India', flag: '🇮🇳' },
+  { code: '+84', country: 'Vietnam', flag: '🇻🇳' },
+  { code: '+855', country: 'Cambodia', flag: '🇰🇭' },
+  { code: '+62', country: 'Indonesia', flag: '🇮🇩' },
+  { code: '+63', country: 'Philippines', flag: '🇵🇭' },
+  { code: '+1', country: 'USA', flag: '🇺🇸' },
 ];
 
 const Login = () => {
@@ -29,9 +30,17 @@ const Login = () => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const { login, register, user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { setTheme } = useTheme();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setTheme('dark');
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [setTheme]);
 
   useEffect(() => {
     if (user) {
@@ -44,10 +53,7 @@ const Login = () => {
     setError('');
     setIsSubmitting(true);
     
-    // Combine country code and phone body
-    // Remove all non-digit characters first
     const digitsOnly = phoneBody.replace(/\D/g, '');
-    // Remove leading zero from phone body if present
     const cleanPhoneBody = digitsOnly.replace(/^0+/, '');
     const fullPhone = `${countryCode}${cleanPhoneBody}`;
 
@@ -59,8 +65,10 @@ const Login = () => {
       }
       navigate('/');
     } catch (err: any) {
-      const msg = err.message || 'Authentication failed';
-      if (msg.includes('Invalid credentials')) {
+      const msg = err.message || '';
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        setError('အင်တာနက်ချိတ်ဆက်မှု မရရှိနိုင်ပါ။ ကျေးဇူးပြု၍ အင်တာနက်ပြန်ဖွင့်ပါ။');
+      } else if (msg.includes('Invalid credentials')) {
         setError('စကားဝှက် မှားယွင်းနေပါသည်။');
       } else if (msg.includes('User not found')) {
         setError('အကောင့်မရှိပါ။ ကျေးဇူးပြု၍ အကောင့်သစ်ဖွင့်ပါ။');
@@ -76,102 +84,173 @@ const Login = () => {
     }
   };
 
+  const currentCountry = countryCodes.find(c => c.code === countryCode);
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-gray-50 dark:bg-gray-900 transition-colors duration-200 relative">
-      <button
-        onClick={toggleTheme}
-        className="absolute top-4 right-4 p-2 rounded-full bg-white dark:bg-gray-800 text-gray-800 dark:text-white shadow-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-      >
-        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-      </button>
+    <div className="flex items-center justify-center min-h-screen bg-[#0b0f1a] font-sans overflow-hidden p-0 md:p-4">
+      {/* Background Glows */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 transition-colors duration-200">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">ကြိုဆိုပါသည်</p>
-        </div>
-
-        <h2 className="text-xl font-bold text-center mb-6 text-gray-800 dark:text-white">
-          {isRegister ? 'အကောင့်သစ်ဖွင့်ရန်' : 'အကောင့်ဝင်ရန်'}
-        </h2>
+      {/* Main Container */}
+      <div className="relative w-full h-screen md:h-auto md:max-w-4xl md:min-h-[600px] bg-[#1a1f2e] md:rounded-[2.5rem] shadow-2xl overflow-hidden">
         
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ဖုန်းနံပါတ်</label>
-            <div className="flex">
-              <select
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="px-2 py-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm max-w-[100px]"
-              >
-                {countryCodes.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.country} ({c.code})
-                  </option>
+        {/* Forms Layer */}
+        <div className="relative w-full h-full flex flex-col md:flex-row">
+          
+          {/* Sign In Form */}
+          <motion.div 
+            className="absolute inset-0 md:w-1/2 flex items-center justify-center p-8 md:p-12 z-10"
+            animate={{ 
+              x: isRegister ? (isMobile ? '0%' : '100%') : '0%',
+              y: isRegister && isMobile ? '100%' : '0%',
+              opacity: isRegister ? 0 : 1,
+              pointerEvents: isRegister ? 'none' : 'auto'
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          >
+            <div className="w-full max-w-sm">
+              <div className="text-center mb-8">
+                <h1 className="text-4xl font-bold text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
+                <h2 className="text-xl font-bold text-white/90">အကောင့်ဝင်ရန်</h2>
+              </div>
+              <div className="flex justify-center gap-3 mb-6">
+                {['G', 'F', 'A'].map(icon => (
+                  <div key={icon} className="w-10 h-10 border border-white/10 rounded-xl flex items-center justify-center cursor-pointer hover:bg-white/5 transition-colors text-white font-bold">{icon}</div>
                 ))}
-              </select>
-              <input
-                type="tel"
-                value={phoneBody}
-                onChange={(e) => setPhoneBody(e.target.value)}
-                className="w-full px-3 py-2 border border-l-0 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="9xxxxxxxxx"
-                required
-              />
+              </div>
+              <span className="text-xs text-gray-500 text-center block mb-6">သို့မဟုတ် ဖုန်းနံပါတ်ဖြင့် ဝင်ရောက်ပါ</span>
+              {error && <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl mb-6 text-xs text-center">{error}</div>}
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <div className="flex bg-[#0f1423] border border-white/10 rounded-2xl overflow-hidden focus-within:border-blue-500/50 transition-colors">
+                    <div className="relative border-r border-white/10">
+                      <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer z-10">
+                        {countryCodes.map((c) => (<option key={c.code} value={c.code}>{c.code}</option>))}
+                      </select>
+                      <div className="h-12 px-4 flex items-center gap-2 min-w-[80px]">
+                        <span className="text-sm font-medium text-gray-300">{countryCode}</span>
+                        <ChevronDown size={12} className="text-gray-500" />
+                      </div>
+                    </div>
+                    <input type="tel" value={phoneBody} onChange={(e) => setPhoneBody(e.target.value)} className="flex-1 h-12 px-4 bg-transparent focus:outline-none text-white placeholder:text-gray-600 text-sm" placeholder="ဖုန်းနံပါတ်" required />
+                  </div>
+                </div>
+                <div className="bg-[#0f1423] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-colors">
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-12 px-4 bg-transparent focus:outline-none text-white placeholder:text-gray-600 text-sm" placeholder="စကားဝှက်" required />
+                </div>
+                <button type="button" className="text-xs text-gray-500 hover:text-blue-400 text-center w-full block">စကားဝှက် မေ့နေပါသလား?</button>
+                <motion.button whileTap={{ scale: 0.98 }} type="submit" disabled={isSubmitting} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-sm shadow-lg flex items-center justify-center transition-all">
+                  {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'ဝင်မည်'}
+                </motion.button>
+              </form>
             </div>
-          </div>
+          </motion.div>
 
-          {isRegister && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">အမည် (Optional)</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="သင့်အမည်"
-              />
+          {/* Sign Up Form */}
+          <motion.div 
+            className="absolute inset-0 md:w-1/2 flex items-center justify-center p-8 md:p-12 z-10"
+            initial={{ opacity: 0 }}
+            animate={{ 
+              x: isRegister ? '0%' : (isMobile ? '0%' : '-100%'),
+              y: !isRegister && isMobile ? '-100%' : '0%',
+              opacity: isRegister ? 1 : 0,
+              pointerEvents: isRegister ? 'auto' : 'none'
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            style={{ left: isMobile ? '0%' : '50%' }}
+          >
+            <div className="w-full max-w-sm">
+              <div className="text-center mb-8">
+                <h1 className="text-4xl font-bold text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
+                <h2 className="text-xl font-bold text-white/90">အကောင့်သစ်ဖွင့်ရန်</h2>
+              </div>
+              <div className="flex justify-center gap-3 mb-6">
+                {['G', 'F', 'A'].map(icon => (
+                  <div key={icon} className="w-10 h-10 border border-white/10 rounded-xl flex items-center justify-center cursor-pointer hover:bg-white/5 transition-colors text-white font-bold">{icon}</div>
+                ))}
+              </div>
+              <span className="text-xs text-gray-500 text-center block mb-6">သို့မဟုတ် အချက်အလက်များဖြည့်၍ အကောင့်ဖွင့်ပါ</span>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="flex bg-[#0f1423] border border-white/10 rounded-2xl overflow-hidden focus-within:border-blue-500/50 transition-colors">
+                  <div className="relative border-r border-white/10">
+                    <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer z-10">
+                      {countryCodes.map((c) => (<option key={c.code} value={c.code}>{c.code}</option>))}
+                    </select>
+                    <div className="h-12 px-4 flex items-center gap-2 min-w-[80px]">
+                      <span className="text-sm font-medium text-gray-300">{countryCode}</span>
+                      <ChevronDown size={12} className="text-gray-500" />
+                    </div>
+                  </div>
+                  <input type="tel" value={phoneBody} onChange={(e) => setPhoneBody(e.target.value)} className="flex-1 h-12 px-4 bg-transparent focus:outline-none text-white placeholder:text-gray-600 text-sm" placeholder="ဖုန်းနံပါတ်" required />
+                </div>
+                <div className="bg-[#0f1423] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-colors">
+                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full h-12 px-4 bg-transparent focus:outline-none text-white placeholder:text-gray-600 text-sm" placeholder="အမည်" />
+                </div>
+                <div className="bg-[#0f1423] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-colors">
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-12 px-4 bg-transparent focus:outline-none text-white placeholder:text-gray-600 text-sm" placeholder="စကားဝှက်" required />
+                </div>
+                <motion.button whileTap={{ scale: 0.98 }} type="submit" disabled={isSubmitting} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-sm shadow-lg flex items-center justify-center transition-all">
+                  {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'ဖွင့်မည်'}
+                </motion.button>
+              </form>
             </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">စကားဝှက်</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="••••••••"
-              required
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              * SMS ကုဒ်ပို့မည်မဟုတ်ပါ။ မိမိသတ်မှတ်ခဲ့သော စကားဝှက်ဖြင့်သာ ဝင်ရောက်ပါ။
-            </p>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200 font-medium ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-          >
-            {isSubmitting ? 'လုပ်ဆောင်နေပါသည်...' : (isRegister ? 'အကောင့်ဖွင့်မည်' : 'ဝင်မည်')}
-          </button>
-        </form>
-
-        <div className="mt-4 text-center">
-          <button
-            onClick={() => setIsRegister(!isRegister)}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            {isRegister ? 'အကောင့်ရှိပြီးသားလား? ဝင်ရန်' : "အကောင့်မရှိဘူးလား? အကောင့်သစ်ဖွင့်ရန်"}
-          </button>
+          </motion.div>
         </div>
+
+        {/* Overlay Container (Desktop) */}
+        <motion.div 
+          className="absolute top-0 left-0 w-full md:w-1/2 h-full bg-blue-600 z-50 overflow-hidden hidden md:block"
+          animate={{ 
+            x: isRegister ? '0%' : '100%',
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        >
+          <motion.div 
+            className="relative -left-full h-full w-[200%] text-white"
+            animate={{ x: isRegister ? '50%' : '0%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          >
+            <div className="absolute top-0 left-0 w-1/2 h-full flex flex-col items-center justify-center p-12 text-center">
+              <h2 className="text-4xl font-bold mb-6">ပြန်လည်ကြိုဆိုပါတယ်!</h2>
+              <p className="mb-8 text-blue-100 leading-relaxed">ဆိုဒ်ရဲ့ ဝန်ဆောင်မှုအားလုံးကို အသုံးပြုနိုင်ဖို့ အကောင့်ဝင်လိုက်ပါ။</p>
+              <button onClick={() => { setIsRegister(false); setError(''); }} className="px-12 py-3 border-2 border-white rounded-2xl font-bold hover:bg-white hover:text-blue-600 transition-all uppercase tracking-wider text-sm">အကောင့်ဝင်ရန်</button>
+            </div>
+            <div className="absolute top-0 right-0 w-1/2 h-full flex flex-col items-center justify-center p-12 text-center">
+              <h2 className="text-4xl font-bold mb-6">မင်္ဂလာပါ သူငယ်ချင်း!</h2>
+              <p className="mb-8 text-blue-100 leading-relaxed">ဆိုဒ်ရဲ့ ဝန်ဆောင်မှုအားလုံးကို အသုံးပြုနိုင်ဖို့ အကောင့်ဖွင့်လိုက်ပါ။</p>
+              <button onClick={() => { setIsRegister(true); setError(''); }} className="px-12 py-3 border-2 border-white rounded-2xl font-bold hover:bg-white hover:text-blue-600 transition-all uppercase tracking-wider text-sm">အကောင့်သစ်ဖွင့်ရန်</button>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Mobile Switcher (Visible only on mobile) */}
+        <AnimatePresence>
+          {isMobile && (
+            <motion.div
+              className="absolute inset-0 bg-blue-600 z-5 flex flex-col items-center justify-center p-8 text-center text-white md:hidden"
+              animate={{ 
+                x: isRegister ? '-100%' : '0%',
+              }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            >
+              {!isRegister ? (
+                <motion.div key="mob-in" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+                  <h2 className="text-4xl font-bold">မင်္ဂလာပါ သူငယ်ချင်း!</h2>
+                  <p className="text-blue-100">ဆိုဒ်ရဲ့ ဝန်ဆောင်မှုအားလုံးကို အသုံးပြုနိုင်ဖို့ အကောင့်ဖွင့်လိုက်ပါ။</p>
+                  <button onClick={() => setIsRegister(true)} className="px-12 py-3 border-2 border-white rounded-2xl font-bold uppercase text-sm">အကောင့်သစ်ဖွင့်ရန်</button>
+                </motion.div>
+              ) : (
+                <motion.div key="mob-up" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+                  <h2 className="text-4xl font-bold">ပြန်လည်ကြိုဆိုပါတယ်!</h2>
+                  <p className="text-blue-100">ဆိုဒ်ရဲ့ ဝန်ဆောင်မှုအားလုံးကို အသုံးပြုနိုင်ဖို့ အကောင့်ဝင်လိုက်ပါ။</p>
+                  <button onClick={() => setIsRegister(false)} className="px-12 py-3 border-2 border-white rounded-2xl font-bold uppercase text-sm">အကောင့်ဝင်ရန်</button>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Wallet, History, User } from 'lucide-react';
+import { Home, Wallet, History, User, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 
 const BottomNav = () => {
@@ -9,6 +9,7 @@ const BottomNav = () => {
   const navItems = [
     { icon: Home, label: 'ပင်မ', path: '/' },
     { icon: Wallet, label: 'ပိုက်ဆံအိတ်', path: '/wallet' },
+    { icon: MessageSquare, label: 'ဒိုင်တင်မယ်', path: '/dealer-chat' },
     { icon: History, label: 'မှတ်တမ်း', path: '/history' },
     { icon: User, label: 'အကောင့်', path: '/profile' },
   ];

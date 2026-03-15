@@ -9,6 +9,7 @@ import Betting from './pages/Betting';
 import History from './pages/History';
 import Wallet from './pages/Wallet';
 import Profile from './pages/Profile';
+import DealerChat from './pages/DealerChat';
 
 import PinLock from './components/PinLock';
 
@@ -29,6 +30,7 @@ const AppRoutes = () => {
         <Route path="/history" element={<History />} />
         <Route path="/wallet" element={<Wallet />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/dealer-chat" element={<DealerChat />} />
       </Route>
     </Routes>
   );

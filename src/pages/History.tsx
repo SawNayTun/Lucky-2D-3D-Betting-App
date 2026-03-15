@@ -8,6 +8,8 @@ const History = () => {
   const [bets, setBets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [betToDelete, setBetToDelete] = useState<number | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const fetchBets = () => {
     setLoading(true);
@@ -60,8 +62,10 @@ const History = () => {
       if (res.ok) {
         setBets((prev: any) => prev.filter((b: any) => b.id !== id));
       }
+      setBetToDelete(null);
     } catch (err) {
       console.error('Failed to delete bet:', err);
+      setBetToDelete(null);
     }
   };
 
@@ -71,8 +75,10 @@ const History = () => {
       if (res.ok) {
         setBets([]);
       }
+      setShowClearConfirm(false);
     } catch (err) {
       console.error('Failed to clear history:', err);
+      setShowClearConfirm(false);
     }
   };
 
@@ -91,7 +97,7 @@ const History = () => {
                 <span>{copied ? 'Copied!' : 'Report'}</span>
               </button>
               <button 
-                onClick={clearHistory}
+                onClick={() => setShowClearConfirm(true)}
                 className="flex items-center space-x-2 bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1.5 rounded-lg text-sm font-medium transition"
                 title="Clear All"
               >
@@ -118,7 +124,7 @@ const History = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{bet.number.length === 3 ? '3D' : '2D'}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(bet.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(bet.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-4">
@@ -133,7 +139,7 @@ const History = () => {
                   </span>
                 </div>
                 <button 
-                  onClick={() => deleteBet(bet.id)}
+                  onClick={() => setBetToDelete(bet.id)}
                   className="text-gray-300 hover:text-red-500 transition p-1"
                 >
                   <XCircle size={18} />
@@ -141,6 +147,54 @@ const History = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Single Bet Confirmation Modal */}
+      {betToDelete !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">ထိုးကွက်ဖျက်ရန် အတည်ပြုပါ</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">ဤထိုးကွက်ကို ဖျက်ရန် သေချာပါသလား?</p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setBetToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+              >
+                မဖျက်တော့ပါ
+              </button>
+              <button
+                onClick={() => deleteBet(betToDelete)}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition shadow-sm shadow-red-200 dark:shadow-none"
+              >
+                ဖျက်မည်
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All History Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">မှတ်တမ်းအားလုံး ဖျက်ရန် အတည်ပြုပါ</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">မှတ်တမ်းအားလုံးကို ဖျက်ရန် သေချာပါသလား? ဤလုပ်ဆောင်ချက်ကို ပြန်ပြင်၍မရပါ။</p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+              >
+                မဖျက်တော့ပါ
+              </button>
+              <button
+                onClick={clearHistory}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition shadow-sm shadow-red-200 dark:shadow-none"
+              >
+                အားလုံးဖျက်မည်
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

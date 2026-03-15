@@ -2,6 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { database, auth } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  FacebookAuthProvider, 
+  OAuthProvider 
+} from 'firebase/auth';
 import { API_BASE_URL } from '../constants';
 
 interface User {
@@ -14,6 +20,9 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (phone: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  loginWithFacebook: () => Promise<void>;
+  loginWithApple: () => Promise<void>;
   register: (phone: string, password: string, username?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -94,6 +103,74 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     navigate('/');
   };
 
+  const socialLogin = async (firebaseUser: any) => {
+    const { device_id, install_time } = getDeviceInfo();
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/social-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firebase_uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          username: firebaseUser.displayName,
+          phone: firebaseUser.phoneNumber,
+          device_id,
+          install_time
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Social login failed');
+      }
+
+      await refreshUser();
+      navigate('/');
+    } catch (error: any) {
+      console.error('Social login backend error:', error);
+      throw error;
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      await socialLogin(result.user);
+    } catch (error: any) {
+      if (error.code === 'auth/configuration-not-found') {
+        throw new Error('Firebase Console တွင် Google Login ကို Enable လုပ်ရန် လိုအပ်နေပါသည်။');
+      }
+      throw error;
+    }
+  };
+
+  const loginWithFacebook = async () => {
+    try {
+      const provider = new FacebookAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      await socialLogin(result.user);
+    } catch (error: any) {
+      if (error.code === 'auth/configuration-not-found') {
+        throw new Error('Firebase Console တွင် Facebook Login ကို Enable လုပ်ရန် လိုအပ်နေပါသည်။');
+      }
+      throw error;
+    }
+  };
+
+  const loginWithApple = async () => {
+    try {
+      const provider = new OAuthProvider('apple.com');
+      const result = await signInWithPopup(auth, provider);
+      await socialLogin(result.user);
+    } catch (error: any) {
+      if (error.code === 'auth/configuration-not-found') {
+        throw new Error('Firebase Console တွင် Apple Login ကို Enable လုပ်ရန် လိုအပ်နေပါသည်။');
+      }
+      throw error;
+    }
+  };
+
   const register = async (phone: string, password: string, username?: string) => {
     const { device_id, install_time } = getDeviceInfo();
     const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
@@ -119,7 +196,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, refreshUser, isLoading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      loginWithGoogle, 
+      loginWithFacebook, 
+      loginWithApple, 
+      register, 
+      logout, 
+      refreshUser, 
+      isLoading 
+    }}>
       {children}
     </AuthContext.Provider>
   );
