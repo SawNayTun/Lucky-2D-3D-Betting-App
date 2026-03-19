@@ -65,6 +65,7 @@ const Login = () => {
       }
       navigate('/');
     } catch (err: any) {
+      console.error('Submit error:', err);
       const msg = err.message || '';
       if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
         setError('အင်တာနက်ချိတ်ဆက်မှု မရရှိနိုင်ပါ။ ကျေးဇူးပြု၍ အင်တာနက်ပြန်ဖွင့်ပါ။');
@@ -77,7 +78,7 @@ const Login = () => {
       } else if (msg.includes('Username already taken')) {
         setError('ဤအမည်ဖြင့် အကောင့်ရှိပြီးသားဖြစ်ပါသည်။ အခြားအမည်တစ်ခု ရွေးချယ်ပါ။');
       } else {
-        setError('စနစ်ချို့ယွင်းချက် ဖြစ်ပေါ်နေပါသည်။ ပြန်လည်ကြိုးစားပါ။');
+        setError(`စနစ်ချို့ယွင်းချက် ဖြစ်ပေါ်နေပါသည်။ (${msg})`);
       }
     } finally {
       setIsSubmitting(false);
