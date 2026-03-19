@@ -4,7 +4,7 @@ import { Send, User, ChevronLeft, CheckCircle2, XCircle, MessageSquare, QrCode, 
 import { useNavigate, useLocation } from 'react-router-dom';
 import jsQR from 'jsqr';
 import { database } from '../lib/firebase';
-import { ref, push, set, onValue, off, serverTimestamp, remove, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, push, set, onValue, off, serverTimestamp, remove, query, orderByChild, equalTo, update } from 'firebase/database';
 
 interface Message {
   id: string;
@@ -14,6 +14,7 @@ interface Message {
   status?: 'pending' | 'accepted' | 'rejected';
   isBet?: boolean;
   reportKey?: string;
+  isDeleted?: boolean;
   details?: { number: string; amount: string; accepted: boolean }[];
 }
 
@@ -21,6 +22,8 @@ interface DealerFriend {
   id: string;
   name: string;
   addedAt: number;
+  status: 'pending' | 'accepted' | 'blocked';
+  balance?: number; // Some dealers might have specific credit/balance for user
 }
 
 const QRScanner = ({ onScan, onClose }: { onScan: (data: string) => void; onClose: () => void }) => {
@@ -109,28 +112,54 @@ const DealerChat = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
   const [friendToDelete, setFriendToDelete] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const savedFriends = localStorage.getItem(`dealer_friends_${user?.id}`);
-    if (savedFriends) {
-      const parsedFriends = JSON.parse(savedFriends);
-      setFriends(parsedFriends);
+    if (!user?.id) return;
 
-      // Handle navigation from Betting page
-      const state = location.state as { justSubmitted?: boolean; dealerId?: string };
-      if (state?.dealerId) {
-        const dealer = parsedFriends.find((f: any) => f.id === state.dealerId);
-        if (dealer) {
-          setSelectedDealer(dealer);
-          // Clear location state to prevent re-selection on refresh
-          window.history.replaceState({}, document.title);
+    // Listen to friends list from Firebase
+    const friendsRef = ref(database, `users/${user.id}/friends`);
+    const unsubscribeFriends = onValue(friendsRef, (snapshot) => {
+      const data = snapshot.val();
+      const friendsList: DealerFriend[] = data ? Object.keys(data).map(key => ({
+        id: key,
+        ...data[key]
+      })) : [];
+      
+      setFriends(friendsList);
+
+      // Sync selectedDealer with updated data from friends list
+      setSelectedDealer(prev => {
+        if (!prev) return null;
+        const updated = friendsList.find(f => f.id === prev.id);
+        if (!updated) return null; // Dealer removed user
+        return updated;
+      });
+
+      // Handle initial selection only once
+      if (!isInitialized && friendsList.length > 0) {
+        const state = location.state as { justSubmitted?: boolean; dealerId?: string };
+        const targetId = state?.dealerId || localStorage.getItem(`last_dealer_id_${user?.id}`);
+        
+        if (targetId) {
+          const dealer = friendsList.find((f: any) => f.id === targetId);
+          if (dealer && dealer.status === 'accepted') {
+            setSelectedDealer(dealer);
+            if (state?.dealerId) {
+              window.history.replaceState({}, document.title);
+            }
+          }
         }
+        setIsInitialized(true);
+      } else if (!data) {
+        setFriends([]);
       }
-    }
-  }, [user?.id, location.state]);
+    });
 
-  // Real-time listener for messages and reports
+    return () => unsubscribeFriends();
+  }, [user?.id, location.state, isInitialized]);
+
   useEffect(() => {
     if (!selectedDealer || !user?.id) return;
 
@@ -160,35 +189,30 @@ const DealerChat = () => {
         });
       }
 
-      // Process Reports
-      if (reportsData) {
-        Object.keys(reportsData).forEach(key => {
-          const report = reportsData[key];
-          if (report.senderId === user.id && report.dealerId === selectedDealer.id) {
-            if (report.status === 'accepted' && !report.isReply) {
-              allMessages.push({
-                id: `report-${key}`,
-                sender: 'dealer',
-                text: report.reportText || `သင့်ရဲ့ဘောက်ချာကို ဒိုင်က လက်ခံလိုက်ပါပြီ။`,
-                timestamp: report.timestamp || Date.now(),
-                details: report.details || report.bets || report.data || [] // Try details, bets, or data
-              });
-            }
-          }
-        });
-      }
-
-      // Process Dealer Reports (Replies)
+      // Process Dealer Reports (Bets and Replies)
       if (dealerReportsData) {
         Object.keys(dealerReportsData).forEach(key => {
           const report = dealerReportsData[key];
-          if (report.senderId === user.id && report.isReply) {
-            allMessages.push({
-              id: `reply-${key}`,
-              sender: 'dealer',
-              text: report.reportText,
-              timestamp: report.timestamp || Date.now(),
-            });
+          // Check if this report belongs to the current user and dealer
+          if (report.userId == user.id && report.dealerId == selectedDealer.id) {
+            if (report.isReply) {
+              // Display as a reply from the dealer
+              allMessages.push({
+                id: `reply-${key}`,
+                sender: 'dealer',
+                text: report.reportText,
+                timestamp: report.timestamp || Date.now(),
+              });
+            } else {
+              // Display as a bet report from the user
+              allMessages.push({
+                id: `report-${key}`,
+                sender: 'user',
+                text: report.reportText,
+                timestamp: report.timestamp || Date.now(),
+                status: report.status || 'pending'
+              });
+            }
           }
         });
       }
@@ -234,11 +258,6 @@ const DealerChat = () => {
     };
   }, [selectedDealer, user?.id]);
 
-  const saveFriends = (newFriends: DealerFriend[]) => {
-    setFriends(newFriends);
-    localStorage.setItem(`dealer_friends_${user?.id}`, JSON.stringify(newFriends));
-  };
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -247,39 +266,67 @@ const DealerChat = () => {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const handleAddFriend = (id: string) => {
+  const handleAddFriend = async (id: string) => {
     const trimmedId = id.trim();
-    if (!trimmedId) return;
+    if (!trimmedId || !user?.id) return;
     
     if (friends.some(f => f.id === trimmedId)) {
       alert('ဤဒိုင်ကို Friend အပ်ပြီးသားဖြစ်ပါသည်။');
       return;
     }
 
-    const newFriend: DealerFriend = {
-      id: trimmedId,
-      name: `ဒိုင် (${trimmedId.substring(0, 6)}...)`,
-      addedAt: Date.now(),
-    };
+    try {
+      // 1. Add to user's friends list as pending
+      const userFriendRef = ref(database, `users/${user.id}/friends/${trimmedId}`);
+      await set(userFriendRef, {
+        name: `ဒိုင် (${trimmedId.substring(0, 6)}...)`,
+        addedAt: Date.now(),
+        status: 'pending'
+      });
 
-    saveFriends([...friends, newFriend]);
-    setShowAddModal(false);
-    setInputDealerId('');
-    setShowScanner(false);
+      // 2. Send request to dealer's request node
+      const requestRef = ref(database, `friend_requests/${trimmedId}/${user.id}`);
+      await set(requestRef, {
+        userId: user.id,
+        username: user.username || user.phone,
+        phone: user.phone,
+        timestamp: Date.now(),
+        status: 'pending'
+      });
+
+      setShowAddModal(false);
+      setInputDealerId('');
+      setShowScanner(false);
+      alert('Friend Request ပို့လိုက်ပါပြီ။ ဒိုင်ဘက်မှ လက်ခံသည်အထိ စောင့်ဆိုင်းပေးပါ။');
+    } catch (error) {
+      console.error('Error adding friend:', error);
+      alert('အမှားတစ်ခုဖြစ်သွားပါသည်။ ပြန်လည်ကြိုးစားကြည့်ပါ။');
+    }
   };
 
-  const handleRemoveFriend = (id: string, e: React.MouseEvent) => {
+  const handleRemoveFriend = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setFriendToDelete(id);
   };
 
-  const confirmRemoveFriend = () => {
-    if (!friendToDelete) return;
-    saveFriends(friends.filter(f => f.id !== friendToDelete));
-    if (selectedDealer?.id === friendToDelete) {
-      setSelectedDealer(null);
+  const confirmRemoveFriend = async () => {
+    if (!friendToDelete || !user?.id) return;
+    
+    try {
+      // Remove from user's friends
+      await set(ref(database, `users/${user.id}/friends/${friendToDelete}`), null);
+      // Also remove the request from dealer's node
+      await set(ref(database, `friend_requests/${friendToDelete}/${user.id}`), null);
+      
+      if (selectedDealer?.id === friendToDelete) {
+        setSelectedDealer(null);
+        localStorage.removeItem(`last_dealer_id_${user?.id}`);
+        window.dispatchEvent(new Event('dealerChanged'));
+      }
+      setFriendToDelete(null);
+    } catch (error) {
+      console.error('Error removing friend:', error);
     }
-    setFriendToDelete(null);
   };
 
   const parseBets = (text: string) => {
@@ -322,7 +369,12 @@ const DealerChat = () => {
     
     const messageRef = ref(database, `chats/${selectedDealer.id}/${user.id}/messages/${messageToDelete.id}`);
     try {
-      await remove(messageRef);
+      await update(messageRef, {
+        text: 'ဤစာကို ပြန်ဖျက်လိုက်သည်',
+        isDeleted: true,
+        details: null, // Remove bet details if any
+        status: 'deleted'
+      });
       
       // If it's a bet, also remove the report from the reports node
       if (messageToDelete.reportKey) {
@@ -387,8 +439,13 @@ const DealerChat = () => {
                 <div 
                   key={friend.id}
                   onClick={() => {
+                    if (friend.status === 'pending') {
+                      alert('ဒိုင်ဘက်မှ လက်ခံသည်အထိ စောင့်ဆိုင်းပေးပါ။');
+                      return;
+                    }
                     setSelectedDealer(friend);
                     localStorage.setItem(`last_dealer_id_${user?.id}`, friend.id);
+                    window.dispatchEvent(new Event('dealerChanged'));
                     setMessages([{
                       id: 'init',
                       sender: 'dealer',
@@ -396,20 +453,27 @@ const DealerChat = () => {
                       timestamp: Date.now(),
                     }]);
                   }}
-                  className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer group"
+                  className={`bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer group ${friend.status === 'pending' ? 'opacity-70' : ''}`}
                 >
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${
+                      friend.status === 'pending' ? 'bg-gray-100 text-gray-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    }`}>
                       {friend.id.charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <h3 className="font-bold text-gray-900 dark:text-white">{friend.name}</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{friend.id.substring(0, 18)}...</p>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{friend.id.substring(0, 12)}...</p>
+                        {friend.status === 'pending' && (
+                          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] rounded-full font-bold">Pending</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <button 
                     onClick={(e) => handleRemoveFriend(friend.id, e)}
-                    className="p-2 text-gray-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                    className="p-2 text-gray-400 hover:text-red-500 transition"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -519,73 +583,92 @@ const DealerChat = () => {
             </div>
           </div>
         </div>
+        <button 
+          onClick={(e) => handleRemoveFriend(selectedDealer.id, e)}
+          className="p-2 text-gray-400 hover:text-red-500 transition"
+        >
+          <Trash2 size={20} />
+        </button>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} group/msg`}>
-            <div className={`relative max-w-[85%] rounded-2xl p-3 shadow-sm ${
-              msg.sender === 'user' 
-                ? 'bg-blue-600 text-white rounded-tr-none' 
-                : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-100 dark:border-gray-700 rounded-tl-none'
-            }`}>
-              {msg.sender === 'user' && msg.id !== 'init' && (
-                <button 
-                  onClick={() => handleDeleteMessage(msg)}
-                  className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-red-500 transition-colors bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-100 dark:border-gray-700"
-                  title="Delete"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-              
-              {msg.details && (
-                <div className="mt-3 space-y-2 border-t border-gray-100 dark:border-gray-700 pt-2">
-                  {msg.details.map((detail, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
-                      <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{detail.number} = {detail.amount}</span>
-                      {detail.accepted ? (
-                        <span className="flex items-center text-green-600 dark:text-green-400 font-medium">
-                          <CheckCircle2 size={14} className="mr-1" /> လက်ခံသည်
-                        </span>
-                      ) : (
-                        <span className="flex items-center text-red-600 dark:text-red-400 font-medium">
-                          <XCircle size={14} className="mr-1" /> လက်မခံပါ
+        {selectedDealer?.status === 'blocked' ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-6">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mb-4">
+              <XCircle size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Block ခံထားရပါသည်</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">ဤဒိုင်မှ သင့်ကို Block ထားသည့်အတွက် စာပို့၍ မရနိုင်ပါ။</p>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} group/msg`}>
+                <div className={`relative max-w-[85%] rounded-2xl p-3 shadow-sm ${
+                  msg.sender === 'user' 
+                    ? 'bg-blue-600 text-white rounded-tr-none' 
+                    : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-100 dark:border-gray-700 rounded-tl-none'
+                }`}>
+                  {msg.sender === 'user' && msg.id !== 'init' && !msg.isDeleted && (
+                    <button 
+                      onClick={() => handleDeleteMessage(msg)}
+                      className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-red-500 transition-colors bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-100 dark:border-gray-700"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                  <p className={`text-sm whitespace-pre-wrap ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
+                  
+                  {msg.details && (
+                    <div className="mt-3 space-y-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                      {msg.details.map((detail, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
+                          <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{detail.number} = {detail.amount}</span>
+                          {detail.accepted ? (
+                            <span className="flex items-center text-green-600 dark:text-green-400 font-medium">
+                              <CheckCircle2 size={14} className="mr-1" /> လက်ခံသည်
+                            </span>
+                          ) : (
+                            <span className="flex items-center text-red-600 dark:text-red-400 font-medium">
+                              <XCircle size={14} className="mr-1" /> လက်မခံပါ
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                    <div className="flex items-center justify-end space-x-1 mt-1">
+                      <p className={`text-[10px] ${msg.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
+                        {new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}
+                      </p>
+                      {msg.sender === 'user' && (
+                        <span className="text-blue-100">
+                          {msg.status === 'accepted' ? <CheckCircle2 size={10} /> : 
+                           msg.status === 'rejected' ? <XCircle size={10} /> : 
+                           <span className="text-[10px] bg-white/20 px-1 rounded-full">{msg.status === 'pending' ? 'စောင့်ဆိုင်းဆဲ' : msg.status}</span>}
                         </span>
                       )}
                     </div>
-                  ))}
                 </div>
-              )}
-              
-              <div className="flex items-center justify-end space-x-1 mt-1">
-                <p className={`text-[10px] ${msg.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
-                  {new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}
-                </p>
-                {msg.sender === 'user' && (
-                  <span className="text-blue-100">
-                    {msg.status === 'accepted' ? <CheckCircle2 size={10} /> : 
-                     msg.status === 'rejected' ? <XCircle size={10} /> : <Clock size={10} />}
-                  </span>
-                )}
               </div>
-            </div>
-          </div>
-        ))}
-        {isTyping && (
-          <div className="flex justify-start">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 rounded-tl-none">
-              <div className="flex space-x-1">
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+            ))}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 rounded-tl-none">
+                  <div className="flex space-x-1">
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+            <div ref={messagesEndRef} />
+          </>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Delete Message Confirmation Modal */}
@@ -616,21 +699,23 @@ const DealerChat = () => {
       )}
 
       {/* Input Form */}
-      <form onSubmit={handleSendMessage} className="bg-white dark:bg-gray-800 p-4 border-t border-gray-100 dark:border-gray-700 flex items-center space-x-2">
-        <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="စာရိုက်ပါ..."
-          className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition text-sm"
-        />
-        <button 
-          type="submit"
-          className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition shadow-lg shadow-blue-500/20"
-        >
-          <Send size={18} />
-        </button>
-      </form>
+      {selectedDealer?.status !== 'blocked' && (
+        <form onSubmit={handleSendMessage} className="bg-white dark:bg-gray-800 p-4 border-t border-gray-100 dark:border-gray-700 flex items-center space-x-2">
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="စာရိုက်ပါ..."
+            className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition text-sm"
+          />
+          <button 
+            type="submit"
+            className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition shadow-lg shadow-blue-500/20"
+          >
+            <Send size={18} />
+          </button>
+        </form>
+      )}
     </div>
   );
 };

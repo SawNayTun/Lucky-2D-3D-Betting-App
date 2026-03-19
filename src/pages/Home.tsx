@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { usePlayerSync } from '../hooks/usePlayerSync';
 import { Link } from 'react-router-dom';
 import { Wallet, TrendingUp, History, AlertCircle, MessageSquare, Trash2 } from 'lucide-react';
 import { database } from '../lib/firebase';
@@ -12,6 +13,9 @@ const Home = () => {
   const [status, setStatus] = useState('loading');
   const [recentBets, setRecentBets] = useState([]);
   const [betToDelete, setBetToDelete] = useState<number | null>(null);
+
+  const dealerId = localStorage.getItem(`last_dealer_id_${user?.id}`) || undefined;
+  const { balance: dealerBalance } = usePlayerSync(dealerId);
 
   const fetchBets = () => {
     fetch(`${API_BASE_URL}/api/bets`)
@@ -70,7 +74,7 @@ const Home = () => {
         <div className="flex justify-between items-start mb-4">
           <div>
             <p className="text-blue-100 text-sm font-medium">လက်ကျန်ငွေ</p>
-            <h2 className="text-3xl font-bold mt-1">{user?.balance?.toLocaleString()} ကျပ်</h2>
+            <h2 className="text-3xl font-bold mt-1">{dealerBalance.toLocaleString()} ကျပ်</h2>
           </div>
           <Wallet className="text-blue-200 opacity-80" size={28} />
         </div>

@@ -15,10 +15,12 @@ interface User {
   phone: string;
   username: string;
   balance: number;
+  status?: 'active' | 'blocked';
 }
 
 interface AuthContextType {
   user: User | null;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   login: (phone: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithFacebook: () => Promise<void>;
@@ -57,15 +59,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     refreshUser();
   }, []);
 
-  // Real-time balance sync from Firebase
+  // Real-time profile sync from Firebase (balance, status, etc.)
   useEffect(() => {
     if (!user?.id) return;
 
-    const balanceRef = ref(database, `users/${user.id}/balance`);
-    const unsubscribe = onValue(balanceRef, (snapshot) => {
-      const newBalance = snapshot.val();
-      if (newBalance !== null && newBalance !== undefined) {
-        setUser(prev => prev ? { ...prev, balance: Number(newBalance) } : null);
+    const userRef = ref(database, `users/${user.id}`);
+    const unsubscribe = onValue(userRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setUser(prev => {
+          if (!prev) return null;
+          // Only update if values actually changed to avoid unnecessary re-renders
+          const newBalance = data.balance !== undefined ? Number(data.balance) : prev.balance;
+          if (prev.balance === newBalance && prev.status === data.status) return prev;
+          return { 
+            ...prev, 
+            balance: newBalance,
+            status: data.status || prev.status
+          };
+        });
       }
     });
 
@@ -198,6 +210,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <AuthContext.Provider value={{ 
       user, 
+      setUser,
       login, 
       loginWithGoogle, 
       loginWithFacebook, 

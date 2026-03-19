@@ -28,19 +28,73 @@ const usersRef = ref(database, 'users');
 onValue(usersRef, (snapshot) => {
   const users = snapshot.val();
   if (users) {
+    console.log('Syncing balances from Firebase...');
     const updateStmt = db.prepare('UPDATE users SET balance = ? WHERE id = ?');
     const transaction = db.transaction((usersData) => {
       Object.keys(usersData).forEach((userId) => {
         const balance = usersData[userId].balance;
         if (balance !== undefined) {
-          updateStmt.run(balance, userId);
+          // Ensure userId is treated correctly (SQLite id is integer)
+          const numericId = parseInt(userId, 10);
+          if (!isNaN(numericId)) {
+            updateStmt.run(balance, numericId);
+            
+            // Sync to dealer_customers for all accepted friends
+            const friends = usersData[userId].friends;
+            if (friends) {
+              Object.keys(friends).forEach(dealerId => {
+                if (friends[dealerId].status === 'accepted') {
+                  const dealerCustomerBalanceRef = ref(database, `dealer_customers/${dealerId}/${userId}/balance`);
+                  set(dealerCustomerBalanceRef, balance).catch(console.error);
+                }
+              });
+            }
+          }
         }
       });
     });
     try {
       transaction(users);
+      console.log('Balance sync completed successfully.');
     } catch (err) {
       console.error('Failed to sync balance from Firebase:', err);
+    }
+  }
+});
+
+// Sync Dealer Customers Balance to SQLite and Users
+const dealerCustomersRef = ref(database, 'dealer_customers');
+onValue(dealerCustomersRef, (snapshot) => {
+  const dealers = snapshot.val();
+  if (dealers) {
+    console.log('Syncing balances from dealer_customers...');
+    const updateStmt = db.prepare('UPDATE users SET balance = ? WHERE id = ?');
+    const selectStmt = db.prepare('SELECT balance FROM users WHERE id = ?');
+    const transaction = db.transaction((dealersData) => {
+      Object.keys(dealersData).forEach((dealerId) => {
+        const customers = dealersData[dealerId];
+        Object.keys(customers).forEach((playerId) => {
+          const balance = customers[playerId].balance;
+          if (balance !== undefined) {
+            const numericId = parseInt(playerId, 10);
+            if (!isNaN(numericId)) {
+              const userRecord: any = selectStmt.get(numericId);
+              if (userRecord && userRecord.balance !== balance) {
+                updateStmt.run(balance, numericId);
+                // Also update users node in Firebase to keep it in sync
+                const userBalanceRef = ref(database, `users/${playerId}/balance`);
+                set(userBalanceRef, balance).catch(console.error);
+              }
+            }
+          }
+        });
+      });
+    });
+    try {
+      transaction(dealers);
+      console.log('Dealer customers balance sync completed successfully.');
+    } catch (err) {
+      console.error('Failed to sync balance from dealer_customers:', err);
     }
   }
 });
@@ -118,6 +172,7 @@ async function startServer() {
       res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
       res.json({ id: info.lastInsertRowid, phone, username: username || phone, balance: 0 });
     } catch (err: any) {
+      console.error('Registration error:', err);
       if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
         return res.status(400).json({ error: 'Phone number already registered' });
       }
@@ -147,6 +202,51 @@ async function startServer() {
     const token = jwt.sign({ id: user.id, phone: user.phone }, JWT_SECRET);
     res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
     res.json({ id: user.id, phone: user.phone, username: user.username, balance: user.balance });
+  });
+
+  // Social Login
+  app.post('/api/auth/social-login', async (req: Request, res: Response) => {
+    const { firebase_uid, email, username, phone, device_id, install_time } = req.body;
+    
+    try {
+      // Check if user exists by firebase_uid or email
+      let user: any = null;
+      if (firebase_uid) {
+        user = db.prepare('SELECT * FROM users WHERE firebase_uid = ?').get(firebase_uid);
+      }
+      
+      if (!user && email) {
+        user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+      }
+
+      if (user) {
+        // Update existing user
+        const updateStmt = db.prepare('UPDATE users SET firebase_uid = COALESCE(?, firebase_uid), email = COALESCE(?, email), device_id = COALESCE(?, device_id), install_time = COALESCE(?, install_time) WHERE id = ?');
+        updateStmt.run(firebase_uid || null, email || null, device_id || null, install_time || null, user.id);
+      } else {
+        // Create new user
+        const insertStmt = db.prepare('INSERT INTO users (phone, username, email, firebase_uid, device_id, install_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const info = insertStmt.run(
+          phone || `social_${Date.now()}`, 
+          username || email || 'User', 
+          email || null, 
+          firebase_uid || null, 
+          device_id || null, 
+          install_time || null,
+          0
+        );
+        user = { id: info.lastInsertRowid, phone: phone || 'Social User' };
+      }
+
+      const token = jwt.sign({ id: user.id, phone: user.phone }, JWT_SECRET);
+      res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
+      
+      const updatedUser: any = db.prepare('SELECT id, phone, username, balance FROM users WHERE id = ?').get(user.id);
+      res.json(updatedUser);
+    } catch (err) {
+      console.error('Social login error:', err);
+      res.status(500).json({ error: 'Social login failed' });
+    }
   });
 
   // Logout
@@ -209,6 +309,12 @@ async function startServer() {
       // 1. Update Firebase Balance immediately
       const userBalanceRef = ref(database, `users/${req.user.id}/balance`);
       await set(userBalanceRef, newBalance.balance);
+
+      // Also update dealer_customers balance if dealerId is provided
+      if (dealerId) {
+        const dealerCustomerBalanceRef = ref(database, `dealer_customers/${dealerId}/${req.user.id}/balance`);
+        await set(dealerCustomerBalanceRef, newBalance.balance);
+      }
       
       // 2. Generate Formatted Report
       const now = new Date();

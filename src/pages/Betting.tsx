@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle, Lock, Plus, Trash2, List } from 'lucide-react';
 import { database } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
+import { usePlayerSync } from '../hooks/usePlayerSync';
 
 import { API_BASE_URL } from '../constants';
 
@@ -13,7 +14,7 @@ interface BetItem {
 }
 
 const Betting = () => {
-  const { user, refreshUser } = useAuth();
+  const { user, setUser, refreshUser } = useAuth();
   const [betType, setBetType] = useState<'2D' | '3D'>('2D');
   const [betList, setBetList] = useState<BetItem[]>([{ number: '', amount: '' }]);
   const [error, setError] = useState('');
@@ -23,21 +24,44 @@ const Betting = () => {
   const navigate = useNavigate();
   const [friends, setFriends] = useState<any[]>([]);
   const [selectedDealerId, setSelectedDealerId] = useState<string>('');
+  
+  const { balance: dealerBalance, isBanned, isDeleted } = usePlayerSync(selectedDealerId);
 
   useEffect(() => {
-    const savedFriends = localStorage.getItem(`dealer_friends_${user?.id}`);
-    if (savedFriends) {
-      const parsedFriends = JSON.parse(savedFriends);
-      setFriends(parsedFriends);
-      
-      // Try to get last dealer or default to first
-      const lastDealerId = localStorage.getItem(`last_dealer_id_${user?.id}`);
-      if (lastDealerId && parsedFriends.some((f: any) => f.id === lastDealerId)) {
-        setSelectedDealerId(lastDealerId);
-      } else if (parsedFriends.length > 0) {
-        setSelectedDealerId(parsedFriends[0].id);
+    if (!user?.id) return;
+
+    // Listen to friends list from Firebase
+    const friendsRef = ref(database, `users/${user.id}/friends`);
+    const unsubscribe = onValue(friendsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const friendsList = Object.keys(data)
+          .map(key => ({
+            id: key,
+            ...data[key]
+          }))
+          .filter((f: any) => f.status === 'accepted'); // Only show accepted dealers
+        
+        setFriends(friendsList);
+        
+        // Try to get last dealer or default to first
+        const lastDealerId = localStorage.getItem(`last_dealer_id_${user?.id}`);
+        if (lastDealerId && friendsList.some((f: any) => f.id === lastDealerId)) {
+          setSelectedDealerId(lastDealerId);
+        } else if (friendsList.length > 0) {
+          const firstId = friendsList[0].id;
+          setSelectedDealerId(firstId);
+          localStorage.setItem(`last_dealer_id_${user?.id}`, firstId);
+        } else {
+          setSelectedDealerId('');
+        }
+      } else {
+        setFriends([]);
+        setSelectedDealerId('');
       }
-    }
+    });
+
+    return () => unsubscribe();
   }, [user?.id]);
 
   useEffect(() => {
@@ -166,8 +190,14 @@ const Betting = () => {
     }
 
     const totalAmount = validBets.reduce((sum, b) => sum + Number(b.amount), 0);
-    if ((user?.balance || 0) < totalAmount) {
-      setError('လက်ကျန်ငွေ မလုံလောက်ပါ။');
+    
+    if (isDeleted || isBanned) {
+      setError('အကောင့်ပိတ်ခံထားရသဖြင့် ဂဏန်းထိုး၍မရပါ။');
+      return;
+    }
+
+    if (dealerBalance < totalAmount) {
+      setError('လက်ကျန်ငွေ မလုံလောက်ပါ။ ကျေးဇူးပြု၍ ငွေသွင်းပါ။');
       return;
     }
 
@@ -194,6 +224,9 @@ const Betting = () => {
         const data = await response.json();
         throw new Error(data.error || 'Bet failed');
       }
+
+      // Refresh user balance to trigger sync
+      await refreshUser();
 
       // Success - Redirect to dealer chat to see the sent bet
       navigate('/dealer-chat', { 
@@ -271,6 +304,18 @@ const Betting = () => {
         </div>
       </div>
 
+      {isBanned && (
+        <div className="bg-red-500 text-white p-3 rounded-lg mt-4 text-center">
+          ⚠️ သင့်အကောင့်ကို ယာယီပိတ်ထားပါသည်။ ဂဏန်းထိုး၍ မရနိုင်ပါ။
+        </div>
+      )}
+
+      {isDeleted && (
+        <div className="bg-red-500 text-white p-3 rounded-lg mt-4 text-center">
+          ⚠️ သင့်အကောင့်ကို ဒိုင်မှ ဖျက်ပစ်လိုက်ပါပြီ။ ဂဏန်းထိုး၍ မရနိုင်ပါ။
+        </div>
+      )}
+
       <div className="flex space-x-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
         <button
           onClick={() => handleBetTypeChange('2D')}
@@ -294,18 +339,35 @@ const Betting = () => {
         </button>
       </div>
 
-      {friends.length > 0 && (
+      {friends.length > 0 ? (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">ဒိုင်ရွေးချယ်ရန်</label>
           <select 
             value={selectedDealerId}
-            onChange={(e) => setSelectedDealerId(e.target.value)}
+            onChange={(e) => {
+              setSelectedDealerId(e.target.value);
+              localStorage.setItem(`last_dealer_id_${user?.id}`, e.target.value);
+            }}
             className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition text-sm"
           >
+            <option value="" disabled>ဒိုင်ရွေးချယ်ပါ</option>
             {friends.map(f => (
               <option key={f.id} value={f.id}>{f.name}</option>
             ))}
           </select>
+        </div>
+      ) : (
+        <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800/50">
+          <p className="text-amber-700 dark:text-amber-400 text-sm flex items-center">
+            <AlertCircle size={16} className="mr-2" />
+            ဂဏန်းထိုးရန်အတွက် အရင်ဆုံး ဒိုင်တစ်ဦးကို Friend အပ်ပေးပါ။ (ဒိုင်ဘက်မှ လက်ခံပြီးမှသာ ထိုး၍ရပါမည်)
+          </p>
+          <button 
+            onClick={() => navigate('/dealer-chat')}
+            className="mt-3 w-full py-2 bg-amber-600 text-white rounded-lg text-sm font-bold shadow-sm"
+          >
+            ဒိုင်အပ်ရန် သွားမည်
+          </button>
         </div>
       )}
 
@@ -341,7 +403,7 @@ const Betting = () => {
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center mb-6">
           <span className="text-gray-500 dark:text-gray-400 text-sm">လက်ကျန်ငွေ</span>
-          <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{user?.balance?.toLocaleString()} ကျပ်</span>
+          <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{dealerBalance.toLocaleString()} ကျပ်</span>
         </div>
 
         {isClosed && (
@@ -429,6 +491,10 @@ const Betting = () => {
           </button>
 
           <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-gray-500 dark:text-gray-400">လက်ကျန်ငွေ</span>
+              <span className="text-lg font-bold text-green-600 dark:text-green-400">{dealerBalance.toLocaleString()} ကျပ်</span>
+            </div>
             <div className="flex justify-between items-center mb-4">
               <span className="text-gray-500 dark:text-gray-400">စုစုပေါင်း ကျသင့်ငွေ</span>
               <span className="text-xl font-bold text-gray-900 dark:text-white">{totalBetAmount.toLocaleString()} ကျပ်</span>
@@ -436,16 +502,16 @@ const Betting = () => {
             
             <button
               type="submit"
-              disabled={isClosed || loading || totalBetAmount === 0}
+              disabled={isClosed || loading || totalBetAmount === 0 || isBanned || isDeleted}
               className={`w-full py-3 px-4 font-semibold rounded-lg shadow-md transition duration-200 ${
-                isClosed || totalBetAmount === 0
+                isClosed || totalBetAmount === 0 || isBanned || isDeleted
                   ? 'bg-gray-400 cursor-not-allowed text-white' 
                   : loading 
                     ? 'bg-blue-600 opacity-70 cursor-not-allowed text-white' 
                     : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              {loading ? 'လုပ်ဆောင်နေသည်...' : isClosed ? 'စျေးကွက်ပိတ်ထားသည်' : 'ထိုးမည်'}
+              {loading ? 'လုပ်ဆောင်နေသည်...' : isClosed ? 'စျေးကွက်ပိတ်ထားသည်' : isBanned ? 'အကောင့်ပိတ်ခံထားရသည်' : isDeleted ? 'အကောင့်ဖျက်ခံထားရသည်' : 'ထိုးမည်'}
             </button>
           </div>
         </form>

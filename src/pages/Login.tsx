@@ -93,26 +93,25 @@ const Login = () => {
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[120px] rounded-full pointer-events-none" />
 
       {/* Main Container */}
-      <div className="relative w-full h-screen md:h-auto md:max-w-4xl md:min-h-[600px] bg-[#1a1f2e] md:rounded-[2.5rem] shadow-2xl overflow-hidden">
+      <div className="relative w-full h-screen md:h-auto md:max-w-4xl md:min-h-[600px] bg-[#1a1f2e] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
         
         {/* Forms Layer */}
-        <div className="relative w-full h-full flex flex-col md:flex-row">
+        <div className="relative flex-1 w-full h-full flex flex-col md:flex-row">
           
           {/* Sign In Form */}
           <motion.div 
-            className="absolute inset-0 md:w-1/2 flex items-center justify-center p-8 md:p-12 z-10"
+            className="absolute inset-0 md:w-1/2 flex items-center justify-center p-6 md:p-12 z-10 bg-[#1a1f2e] md:bg-transparent"
             animate={{ 
-              x: isRegister ? (isMobile ? '0%' : '100%') : '0%',
-              y: isRegister && isMobile ? '100%' : '0%',
+              x: isRegister ? (isMobile ? '100%' : '100%') : '0%',
               opacity: isRegister ? 0 : 1,
               pointerEvents: isRegister ? 'none' : 'auto'
             }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           >
             <div className="w-full max-w-sm">
-              <div className="text-center mb-8">
-                <h1 className="text-4xl font-bold text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
-                <h2 className="text-xl font-bold text-white/90">အကောင့်ဝင်ရန်</h2>
+              <div className="text-center mb-6 md:mb-8">
+                <h1 className="text-3xl md:text-4xl font-bold text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
+                <h2 className="text-lg md:text-xl font-bold text-white/90">အကောင့်ဝင်ရန်</h2>
               </div>
               <div className="flex justify-center gap-3 mb-6">
                 {['G', 'F', 'A'].map(icon => (
@@ -121,7 +120,7 @@ const Login = () => {
               </div>
               <span className="text-xs text-gray-500 text-center block mb-6">သို့မဟုတ် ဖုန်းနံပါတ်ဖြင့် ဝင်ရောက်ပါ</span>
               {error && <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl mb-6 text-xs text-center">{error}</div>}
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-4 md:space-y-5">
                 <div className="space-y-2">
                   <div className="flex bg-[#0f1423] border border-white/10 rounded-2xl overflow-hidden focus-within:border-blue-500/50 transition-colors">
                     <div className="relative border-r border-white/10">
@@ -144,16 +143,21 @@ const Login = () => {
                   {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'ဝင်မည်'}
                 </motion.button>
               </form>
+              
+              {/* Mobile Toggle */}
+              <div className="mt-8 text-center md:hidden">
+                <p className="text-sm text-gray-400 mb-2">အကောင့်မရှိသေးဘူးလား?</p>
+                <button onClick={() => { setIsRegister(true); setError(''); }} className="text-blue-400 font-bold">အကောင့်သစ်ဖွင့်ရန်</button>
+              </div>
             </div>
           </motion.div>
 
           {/* Sign Up Form */}
           <motion.div 
-            className="absolute inset-0 md:w-1/2 flex items-center justify-center p-8 md:p-12 z-10"
+            className="absolute inset-0 md:w-1/2 flex items-center justify-center p-6 md:p-12 z-10 bg-[#1a1f2e] md:bg-transparent"
             initial={{ opacity: 0 }}
             animate={{ 
-              x: isRegister ? '0%' : (isMobile ? '0%' : '-100%'),
-              y: !isRegister && isMobile ? '-100%' : '0%',
+              x: isRegister ? '0%' : (isMobile ? '-100%' : '-100%'),
               opacity: isRegister ? 1 : 0,
               pointerEvents: isRegister ? 'auto' : 'none'
             }}
@@ -161,9 +165,9 @@ const Login = () => {
             style={{ left: isMobile ? '0%' : '50%' }}
           >
             <div className="w-full max-w-sm">
-              <div className="text-center mb-8">
-                <h1 className="text-4xl font-bold text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
-                <h2 className="text-xl font-bold text-white/90">အကောင့်သစ်ဖွင့်ရန်</h2>
+              <div className="text-center mb-6 md:mb-8">
+                <h1 className="text-3xl md:text-4xl font-bold text-blue-400 mb-2">အနာဂတ်ကမ္ဘာ</h1>
+                <h2 className="text-lg md:text-xl font-bold text-white/90">အကောင့်သစ်ဖွင့်ရန်</h2>
               </div>
               <div className="flex justify-center gap-3 mb-6">
                 {['G', 'F', 'A'].map(icon => (
@@ -194,13 +198,19 @@ const Login = () => {
                   {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'ဖွင့်မည်'}
                 </motion.button>
               </form>
+              
+              {/* Mobile Toggle */}
+              <div className="mt-8 text-center md:hidden">
+                <p className="text-sm text-gray-400 mb-2">အကောင့်ရှိပြီးသားလား?</p>
+                <button onClick={() => { setIsRegister(false); setError(''); }} className="text-blue-400 font-bold">အကောင့်ဝင်ရန်</button>
+              </div>
             </div>
           </motion.div>
         </div>
 
-        {/* Overlay Container (Desktop) */}
+        {/* Overlay Container (Desktop Only) */}
         <motion.div 
-          className="absolute top-0 left-0 w-full md:w-1/2 h-full bg-blue-600 z-50 overflow-hidden hidden md:block"
+          className="absolute top-0 left-0 w-1/2 h-full bg-blue-600 z-50 overflow-hidden hidden md:block"
           animate={{ 
             x: isRegister ? '0%' : '100%',
           }}
@@ -223,34 +233,6 @@ const Login = () => {
             </div>
           </motion.div>
         </motion.div>
-
-        {/* Mobile Switcher (Visible only on mobile) */}
-        <AnimatePresence>
-          {isMobile && (
-            <motion.div
-              className="absolute inset-0 bg-blue-600 z-5 flex flex-col items-center justify-center p-8 text-center text-white md:hidden"
-              animate={{ 
-                x: isRegister ? '-100%' : '0%',
-              }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            >
-              {!isRegister ? (
-                <motion.div key="mob-in" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-                  <h2 className="text-4xl font-bold">မင်္ဂလာပါ သူငယ်ချင်း!</h2>
-                  <p className="text-blue-100">ဆိုဒ်ရဲ့ ဝန်ဆောင်မှုအားလုံးကို အသုံးပြုနိုင်ဖို့ အကောင့်ဖွင့်လိုက်ပါ။</p>
-                  <button onClick={() => setIsRegister(true)} className="px-12 py-3 border-2 border-white rounded-2xl font-bold uppercase text-sm">အကောင့်သစ်ဖွင့်ရန်</button>
-                </motion.div>
-              ) : (
-                <motion.div key="mob-up" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-                  <h2 className="text-4xl font-bold">ပြန်လည်ကြိုဆိုပါတယ်!</h2>
-                  <p className="text-blue-100">ဆိုဒ်ရဲ့ ဝန်ဆောင်မှုအားလုံးကို အသုံးပြုနိုင်ဖို့ အကောင့်ဝင်လိုက်ပါ။</p>
-                  <button onClick={() => setIsRegister(false)} className="px-12 py-3 border-2 border-white rounded-2xl font-bold uppercase text-sm">အကောင့်ဝင်ရန်</button>
-                </motion.div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
       </div>
     </div>
   );
