@@ -153,6 +153,7 @@ async function startServer() {
   // Register
   app.post('/api/auth/register', async (req: Request, res: Response) => {
     const { phone, username, password, device_id, install_time } = req.body;
+    console.log('Register attempt:', { phone, username });
     if (!phone || !password) return res.status(400).json({ error: 'Phone and password required' });
 
     try {
@@ -176,20 +177,28 @@ async function startServer() {
       if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
         return res.status(400).json({ error: 'Phone number already registered' });
       }
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error: ' + err.message });
     }
   });
 
   // Login
   app.post('/api/auth/login', async (req: Request, res: Response) => {
     const { phone, password, device_id, install_time } = req.body;
+    console.log('Login attempt:', { phone });
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number required' });
+    }
+
     const user: any = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
 
     if (!user) {
+      console.log('User not found:', phone);
       return res.status(404).json({ error: 'User not found' });
     }
 
     if (!(await bcrypt.compare(password, user.password))) {
+      console.log('Invalid password for:', phone);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 

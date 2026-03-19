@@ -41,7 +41,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshUser = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/me`);
+      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      credentials: 'include',
+    });
       if (res.ok) {
         const data = await res.json();
         setUser(data);
@@ -104,6 +106,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password, device_id, install_time }),
+      credentials: 'include',
     });
     
     if (!res.ok) {
@@ -129,6 +132,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           device_id,
           install_time
         }),
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -189,6 +193,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password, username, device_id, install_time }),
+      credentials: 'include',
     });
 
     if (!res.ok) {
