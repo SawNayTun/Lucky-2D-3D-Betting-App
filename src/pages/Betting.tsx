@@ -66,7 +66,7 @@ const Betting = () => {
 
   useEffect(() => {
     // Initial fetch from API
-    fetch(`${API_BASE_URL}/api/status`)
+    fetch(`${API_BASE_URL}/api/status`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => setStatus(data.status));
 
@@ -218,6 +218,7 @@ const Betting = () => {
           bets: validBets,
           dealerId: selectedDealerId 
         }),
+        credentials: 'include',
       });
 
       if (!response.ok) {

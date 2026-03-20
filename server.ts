@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import cors from 'cors';
 import db from './db.js';
 import { database } from './src/lib/firebase.js';
 import { ref, push, set, onValue } from 'firebase/database';
@@ -131,6 +132,11 @@ async function startServer() {
   const PORT = 3000;
 
   app.set('trust proxy', true); // Trust proxy headers for correct protocol/host
+
+  app.use(cors({
+    origin: true, // Allow all origins and reflect them back
+    credentials: true, // Allow cookies to be sent
+  }));
 
   app.use(express.json());
   app.use(cookieParser());

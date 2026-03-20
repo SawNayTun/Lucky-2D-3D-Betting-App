@@ -13,7 +13,7 @@ const History = () => {
 
   const fetchBets = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/api/bets`)
+    fetch(`${API_BASE_URL}/api/bets`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         setBets(data);
@@ -58,7 +58,7 @@ const History = () => {
 
   const deleteBet = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bets/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/api/bets/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         setBets((prev: any) => prev.filter((b: any) => b.id !== id));
       }
@@ -71,7 +71,7 @@ const History = () => {
 
   const clearHistory = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bets`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/api/bets`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         setBets([]);
       }

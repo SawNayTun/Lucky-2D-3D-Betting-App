@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { database, auth } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { 
@@ -37,13 +37,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const location = useLocation();
 
   const refreshUser = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      credentials: 'include',
-    });
+        credentials: 'include',
+      });
       if (res.ok) {
         const data = await res.json();
         setUser(data);
@@ -61,42 +60,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     refreshUser();
   }, []);
 
-  // Real-time profile sync from Firebase (balance, status, etc.)
   useEffect(() => {
     if (!user?.id) return;
-
     const userRef = ref(database, `users/${user.id}`);
     const unsubscribe = onValue(userRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setUser(prev => {
           if (!prev) return null;
-          // Only update if values actually changed to avoid unnecessary re-renders
           const newBalance = data.balance !== undefined ? Number(data.balance) : prev.balance;
           if (prev.balance === newBalance && prev.status === data.status) return prev;
-          return { 
-            ...prev, 
-            balance: newBalance,
-            status: data.status || prev.status
-          };
+          return { ...prev, balance: newBalance, status: data.status || prev.status };
         });
       }
     });
-
     return () => unsubscribe();
   }, [user?.id]);
 
   const getDeviceInfo = () => {
     let deviceId = localStorage.getItem('device_id');
     let installTime = localStorage.getItem('install_time');
-    
     if (!deviceId) {
       deviceId = 'dev_' + Date.now() + Math.random().toString(36).substr(2, 9);
       installTime = new Date().toISOString();
       localStorage.setItem('device_id', deviceId);
       localStorage.setItem('install_time', installTime);
     }
-    
     return { device_id: deviceId, install_time: installTime };
   };
 
@@ -108,12 +97,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       body: JSON.stringify({ phone, password, device_id, install_time }),
       credentials: 'include',
     });
-    
     if (!res.ok) {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Login failed');
     }
-    
     await refreshUser();
     navigate('/');
   };
@@ -134,12 +121,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }),
         credentials: 'include',
       });
-
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Social login failed');
       }
-
       await refreshUser();
       navigate('/');
     } catch (error: any) {
@@ -154,9 +139,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await signInWithPopup(auth, provider);
       await socialLogin(result.user);
     } catch (error: any) {
-      if (error.code === 'auth/configuration-not-found') {
-        throw new Error('Firebase Console တွင် Google Login ကို Enable လုပ်ရန် လိုအပ်နေပါသည်။');
-      }
       throw error;
     }
   };
@@ -167,9 +149,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await signInWithPopup(auth, provider);
       await socialLogin(result.user);
     } catch (error: any) {
-      if (error.code === 'auth/configuration-not-found') {
-        throw new Error('Firebase Console တွင် Facebook Login ကို Enable လုပ်ရန် လိုအပ်နေပါသည်။');
-      }
       throw error;
     }
   };
@@ -180,9 +159,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await signInWithPopup(auth, provider);
       await socialLogin(result.user);
     } catch (error: any) {
-      if (error.code === 'auth/configuration-not-found') {
-        throw new Error('Firebase Console တွင် Apple Login ကို Enable လုပ်ရန် လိုအပ်နေပါသည်။');
-      }
       throw error;
     }
   };
@@ -195,36 +171,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       body: JSON.stringify({ phone, password, username, device_id, install_time }),
       credentials: 'include',
     });
-
     if (!res.ok) {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Registration failed');
     }
-
     await refreshUser();
     navigate('/');
   };
 
   const logout = async () => {
-    await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST' });
-    localStorage.removeItem('app_pin');
+    await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
     setUser(null);
     navigate('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      setUser,
-      login, 
-      loginWithGoogle, 
-      loginWithFacebook, 
-      loginWithApple, 
-      register, 
-      logout, 
-      refreshUser, 
-      isLoading 
-    }}>
+    <AuthContext.Provider value={{ user, setUser, login, loginWithGoogle, loginWithFacebook, loginWithApple, register, logout, refreshUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

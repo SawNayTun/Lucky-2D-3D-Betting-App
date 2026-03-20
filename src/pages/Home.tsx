@@ -18,14 +18,14 @@ const Home = () => {
   const { balance: dealerBalance } = usePlayerSync(dealerId);
 
   const fetchBets = () => {
-    fetch(`${API_BASE_URL}/api/bets`)
+    fetch(`${API_BASE_URL}/api/bets`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => setRecentBets(data.slice(0, 3)));
   };
 
   useEffect(() => {
     // Initial fetch from API
-    fetch(`${API_BASE_URL}/api/status`)
+    fetch(`${API_BASE_URL}/api/status`, { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => setStatus(data.status));
 
@@ -45,7 +45,7 @@ const Home = () => {
 
   const deleteBet = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bets/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/api/bets/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         setRecentBets((prev: any) => prev.filter((b: any) => b.id !== id));
       }

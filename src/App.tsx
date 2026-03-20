@@ -63,7 +63,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+      <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/betting" element={<Betting />} />
         <Route path="/history" element={<History />} />

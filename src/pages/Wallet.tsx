@@ -19,7 +19,7 @@ const Wallet = () => {
 
   const fetchTransactions = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/transactions`);
+      const res = await fetch(`${API_BASE_URL}/api/transactions`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
@@ -50,6 +50,7 @@ const Wallet = () => {
       const res = await fetch(`${API_BASE_URL}/api/transactions`, {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
 
       const data = await res.json();
