@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { usePlayerSync } from '../hooks/usePlayerSync';
 import { ArrowUpCircle, ArrowDownCircle, CheckCircle, AlertCircle, Clock } from 'lucide-react';
-import { API_BASE_URL } from '../constants';
+import { fetchApi } from '../utils/api';
 
 const Wallet = () => {
   const { user, refreshUser } = useAuth();
@@ -19,7 +19,7 @@ const Wallet = () => {
 
   const fetchTransactions = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/transactions`, { credentials: 'include' });
+      const res = await fetchApi('/api/transactions');
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
@@ -47,10 +47,9 @@ const Wallet = () => {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/transactions`, {
+      const res = await fetchApi('/api/transactions', {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
 
       const data = await res.json();

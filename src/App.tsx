@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { XCircle } from 'lucide-react';
@@ -15,7 +15,7 @@ import DealerChat from './pages/DealerChat';
 import PinLock from './components/PinLock';
 import GlobalPlayerSync from './components/GlobalPlayerSync';
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
   const { user, isLoading } = useAuth();
   if (isLoading) return <div className="flex justify-center items-center h-screen dark:bg-gray-900 dark:text-white">Loading...</div>;
   if (!user) return <Navigate to="/login" />;
@@ -54,7 +54,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return (
     <PinLock>
       <GlobalPlayerSync />
-      {children}
+      {children ? children : <Outlet />}
     </PinLock>
   );
 };
@@ -63,13 +63,15 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route element={<Layout />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/betting" element={<Betting />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/wallet" element={<Wallet />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/dealer-chat" element={<DealerChat />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/betting" element={<Betting />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/wallet" element={<Wallet />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/dealer-chat" element={<DealerChat />} />
+        </Route>
       </Route>
     </Routes>
   );

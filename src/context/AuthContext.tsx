@@ -8,7 +8,7 @@ import {
   FacebookAuthProvider, 
   OAuthProvider 
 } from 'firebase/auth';
-import { API_BASE_URL } from '../constants';
+import { fetchApi } from '../utils/api';
 
 interface User {
   id: number;
@@ -40,11 +40,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshUser = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        credentials: 'include',
-      });
+      const res = await fetchApi('/api/auth/me');
       if (res.ok) {
         const data = await res.json();
+        if (data.token) localStorage.setItem('token', data.token);
         setUser(data);
       } else {
         setUser(null);
@@ -91,16 +90,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (phone: string, password: string) => {
     const { device_id, install_time } = getDeviceInfo();
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const res = await fetchApi('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password, device_id, install_time }),
-      credentials: 'include',
     });
     if (!res.ok) {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Login failed');
     }
+    const data = await res.json();
+    if (data.token) localStorage.setItem('token', data.token);
     await refreshUser();
     navigate('/');
   };
@@ -108,7 +108,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const socialLogin = async (firebaseUser: any) => {
     const { device_id, install_time } = getDeviceInfo();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/social-login`, {
+      const res = await fetchApi('/api/auth/social-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -119,12 +119,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           device_id,
           install_time
         }),
-        credentials: 'include',
       });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Social login failed');
       }
+      const data = await res.json();
+      if (data.token) localStorage.setItem('token', data.token);
       await refreshUser();
       navigate('/');
     } catch (error: any) {
@@ -165,22 +166,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (phone: string, password: string, username?: string) => {
     const { device_id, install_time } = getDeviceInfo();
-    const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const res = await fetchApi('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password, username, device_id, install_time }),
-      credentials: 'include',
     });
     if (!res.ok) {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Registration failed');
     }
+    const data = await res.json();
+    if (data.token) localStorage.setItem('token', data.token);
     await refreshUser();
     navigate('/');
   };
 
   const logout = async () => {
-    await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    await fetchApi('/api/auth/logout', { method: 'POST' });
+    localStorage.removeItem('token');
     setUser(null);
     navigate('/login');
   };

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Copy, Check, Trash2, XCircle } from 'lucide-react';
-import { API_BASE_URL } from '../constants';
+import { fetchApi } from '../utils/api';
 
 const History = () => {
   const { user } = useAuth();
@@ -13,7 +13,7 @@ const History = () => {
 
   const fetchBets = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/api/bets`, { credentials: 'include' })
+    fetchApi('/api/bets')
       .then((res) => res.json())
       .then((data) => {
         setBets(data);
@@ -58,7 +58,7 @@ const History = () => {
 
   const deleteBet = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bets/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetchApi(`/api/bets/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setBets((prev: any) => prev.filter((b: any) => b.id !== id));
       }
@@ -71,7 +71,7 @@ const History = () => {
 
   const clearHistory = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bets`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetchApi('/api/bets', { method: 'DELETE' });
       if (res.ok) {
         setBets([]);
       }

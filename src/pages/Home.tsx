@@ -6,7 +6,7 @@ import { Wallet, TrendingUp, History, AlertCircle, MessageSquare, Trash2 } from 
 import { database } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
 
-import { API_BASE_URL } from '../constants';
+import { fetchApi } from '../utils/api';
 
 const Home = () => {
   const { user } = useAuth();
@@ -18,14 +18,22 @@ const Home = () => {
   const { balance: dealerBalance } = usePlayerSync(dealerId);
 
   const fetchBets = () => {
-    fetch(`${API_BASE_URL}/api/bets`, { credentials: 'include' })
-      .then((res) => res.json())
-      .then((data) => setRecentBets(data.slice(0, 3)));
+    fetchApi('/api/bets')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch bets');
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRecentBets(data.slice(0, 3));
+        }
+      })
+      .catch((err) => console.error(err));
   };
 
   useEffect(() => {
     // Initial fetch from API
-    fetch(`${API_BASE_URL}/api/status`, { credentials: 'include' })
+    fetchApi('/api/status')
       .then((res) => res.json())
       .then((data) => setStatus(data.status));
 
@@ -45,7 +53,7 @@ const Home = () => {
 
   const deleteBet = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bets/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetchApi(`/api/bets/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setRecentBets((prev: any) => prev.filter((b: any) => b.id !== id));
       }

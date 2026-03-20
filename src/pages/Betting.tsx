@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle, Lock, Plus, Trash2, List } from 'lucide-react';
+import { AlertCircle, CheckCircle, Lock, Plus, Trash2, List, ChevronLeft } from 'lucide-react';
 import { database } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { usePlayerSync } from '../hooks/usePlayerSync';
 
-import { API_BASE_URL } from '../constants';
+import { fetchApi } from '../utils/api';
 
 interface BetItem {
   number: string;
@@ -66,7 +66,7 @@ const Betting = () => {
 
   useEffect(() => {
     // Initial fetch from API
-    fetch(`${API_BASE_URL}/api/status`, { credentials: 'include' })
+    fetchApi('/api/status')
       .then((res) => res.json())
       .then((data) => setStatus(data.status));
 
@@ -211,14 +211,13 @@ const Betting = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/bets`, {
+      const response = await fetchApi('/api/bets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           bets: validBets,
           dealerId: selectedDealerId 
         }),
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -298,8 +297,16 @@ const Betting = () => {
 
   return (
     <div className="p-4 space-y-6 pb-24">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ထိုးမည်</h1>
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center space-x-3">
+          <button 
+            onClick={() => navigate(-1)}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-600 dark:text-gray-300"
+          >
+            <ChevronLeft size={24} />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ထိုးမည်</h1>
+        </div>
         <div className={`px-3 py-1 rounded-full text-xs font-medium ${status === 'open' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
           စျေးကွက်: {status === 'open' ? 'ဖွင့်' : status === 'loading' ? '...' : 'ပိတ်'}
         </div>

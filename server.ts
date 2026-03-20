@@ -144,7 +144,10 @@ async function startServer() {
 
   // --- Auth Middleware ---
   const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const token = req.cookies.token;
+    const authHeader = req.headers['authorization'];
+    const bearerToken = authHeader && authHeader.split(' ')[1];
+    const token = bearerToken || req.cookies.token;
+
     if (!token) return res.sendStatus(401);
 
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
@@ -177,7 +180,7 @@ async function startServer() {
       
       const token = jwt.sign({ id: info.lastInsertRowid, phone }, JWT_SECRET);
       res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
-      res.json({ id: info.lastInsertRowid, phone, username: username || phone, balance: 0 });
+      res.json({ token, id: info.lastInsertRowid, phone, username: username || phone, balance: 0 });
     } catch (err: any) {
       console.error('Registration error:', err);
       if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -216,7 +219,7 @@ async function startServer() {
 
     const token = jwt.sign({ id: user.id, phone: user.phone }, JWT_SECRET);
     res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
-    res.json({ id: user.id, phone: user.phone, username: user.username, balance: user.balance });
+    res.json({ token, id: user.id, phone: user.phone, username: user.username, balance: user.balance });
   });
 
   // Social Login
@@ -257,7 +260,7 @@ async function startServer() {
       res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
       
       const updatedUser: any = db.prepare('SELECT id, phone, username, balance FROM users WHERE id = ?').get(user.id);
-      res.json(updatedUser);
+      res.json({ ...updatedUser, token });
     } catch (err) {
       console.error('Social login error:', err);
       res.status(500).json({ error: 'Social login failed' });
