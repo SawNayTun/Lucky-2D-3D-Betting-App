@@ -133,10 +133,7 @@ async function startServer() {
 
   app.set('trust proxy', true); // Trust proxy headers for correct protocol/host
 
-  app.use(cors({
-    origin: true, // Allow all origins and reflect them back
-    credentials: true, // Allow cookies to be sent
-  }));
+  app.use(cors()); // Allow all origins with *
 
   app.use(express.json());
   app.use(cookieParser());
@@ -220,51 +217,6 @@ async function startServer() {
     const token = jwt.sign({ id: user.id, phone: user.phone }, JWT_SECRET);
     res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
     res.json({ token, id: user.id, phone: user.phone, username: user.username, balance: user.balance });
-  });
-
-  // Social Login
-  app.post('/api/auth/social-login', async (req: Request, res: Response) => {
-    const { firebase_uid, email, username, phone, device_id, install_time } = req.body;
-    
-    try {
-      // Check if user exists by firebase_uid or email
-      let user: any = null;
-      if (firebase_uid) {
-        user = db.prepare('SELECT * FROM users WHERE firebase_uid = ?').get(firebase_uid);
-      }
-      
-      if (!user && email) {
-        user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-      }
-
-      if (user) {
-        // Update existing user
-        const updateStmt = db.prepare('UPDATE users SET firebase_uid = COALESCE(?, firebase_uid), email = COALESCE(?, email), device_id = COALESCE(?, device_id), install_time = COALESCE(?, install_time) WHERE id = ?');
-        updateStmt.run(firebase_uid || null, email || null, device_id || null, install_time || null, user.id);
-      } else {
-        // Create new user
-        const insertStmt = db.prepare('INSERT INTO users (phone, username, email, firebase_uid, device_id, install_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        const info = insertStmt.run(
-          phone || `social_${Date.now()}`, 
-          username || email || 'User', 
-          email || null, 
-          firebase_uid || null, 
-          device_id || null, 
-          install_time || null,
-          0
-        );
-        user = { id: info.lastInsertRowid, phone: phone || 'Social User' };
-      }
-
-      const token = jwt.sign({ id: user.id, phone: user.phone }, JWT_SECRET);
-      res.cookie('token', token, { httpOnly: true, sameSite: 'none', secure: true });
-      
-      const updatedUser: any = db.prepare('SELECT id, phone, username, balance FROM users WHERE id = ?').get(user.id);
-      res.json({ ...updatedUser, token });
-    } catch (err) {
-      console.error('Social login error:', err);
-      res.status(500).json({ error: 'Social login failed' });
-    }
   });
 
   // Logout

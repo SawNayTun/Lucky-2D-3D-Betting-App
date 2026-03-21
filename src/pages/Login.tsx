@@ -7,6 +7,7 @@ import { Sun, Moon } from 'lucide-react';
 
 const Login = () => {
   const [isRegister, setIsRegister] = useState(false);
+  const [countryCode, setCountryCode] = useState('+95');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -25,10 +26,16 @@ const Login = () => {
     setError('');
     setIsSubmitting(true);
     try {
+      let formattedPhone = phone.trim();
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = formattedPhone.substring(1);
+      }
+      const fullPhone = `${countryCode}${formattedPhone}`;
+
       if (isRegister) {
-        await register(phone, password, username);
+        await register(fullPhone, password, username);
       } else {
-        await login(phone, password);
+        await login(fullPhone, password);
       }
       navigate('/');
     } catch (err: any) {
@@ -66,14 +73,57 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className={`block text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>ဖုန်းနံပါတ်</label>
-            <input 
-              type="tel" 
-              value={phone} 
-              onChange={(e) => setPhone(e.target.value)} 
-              className={`w-full px-4 py-3 rounded-xl border outline-none transition-colors ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-blue-500' : 'bg-gray-50 border-gray-200 text-gray-900 focus:ring-2 focus:ring-blue-500'}`}
-              placeholder="09xxxxxxxxx"
-              required 
-            />
+            <div className="flex">
+              <select
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                className={`px-3 py-3 rounded-l-xl border-y border-l outline-none transition-colors ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-blue-500' : 'bg-gray-50 border-gray-200 text-gray-900 focus:ring-2 focus:ring-blue-500'}`}
+              >
+                <option value="+95">+95 (MM)</option>
+                <option value="+66">+66 (TH)</option>
+                <option value="+65">+65 (SG)</option>
+                <option value="+60">+60 (MY)</option>
+                <option value="+62">+62 (ID)</option>
+                <option value="+63">+63 (PH)</option>
+                <option value="+84">+84 (VN)</option>
+                <option value="+855">+855 (KH)</option>
+                <option value="+856">+856 (LA)</option>
+                <option value="+673">+673 (BN)</option>
+                <option value="+81">+81 (JP)</option>
+                <option value="+82">+82 (KR)</option>
+                <option value="+86">+86 (CN)</option>
+                <option value="+886">+886 (TW)</option>
+                <option value="+852">+852 (HK)</option>
+                <option value="+853">+853 (MO)</option>
+                <option value="+91">+91 (IN)</option>
+                <option value="+92">+92 (PK)</option>
+                <option value="+880">+880 (BD)</option>
+                <option value="+94">+94 (LK)</option>
+                <option value="+977">+977 (NP)</option>
+                <option value="+960">+960 (MV)</option>
+                <option value="+971">+971 (AE)</option>
+                <option value="+966">+966 (SA)</option>
+                <option value="+974">+974 (QA)</option>
+                <option value="+965">+965 (KW)</option>
+                <option value="+968">+968 (OM)</option>
+                <option value="+973">+973 (BH)</option>
+                <option value="+972">+972 (IL)</option>
+                <option value="+90">+90 (TR)</option>
+                <option value="+98">+98 (IR)</option>
+                <option value="+964">+964 (IQ)</option>
+                <option value="+93">+93 (AF)</option>
+                <option value="+998">+998 (UZ)</option>
+                <option value="+7">+7 (KZ/RU)</option>
+              </select>
+              <input 
+                type="tel" 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                className={`w-full px-4 py-3 rounded-r-xl border outline-none transition-colors ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-blue-500' : 'bg-gray-50 border-gray-200 text-gray-900 focus:ring-2 focus:ring-blue-500'}`}
+                placeholder="9xxxxxxxxx"
+                required 
+              />
+            </div>
           </div>
           
           {isRegister && (

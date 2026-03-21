@@ -100,16 +100,30 @@ const Betting = () => {
     const bet = betList[index];
     if (!bet.number || !bet.amount) return;
 
+    let firstAmt = bet.amount;
+    let secondAmt = bet.amount;
+    let hasSplit = false;
+
+    if (bet.amount.includes('.')) {
+      const parts = bet.amount.split('.');
+      if (parts.length === 2 && parts[1]) {
+        firstAmt = parts[0];
+        secondAmt = parts[1];
+        hasSplit = true;
+      }
+    }
+
     if (betType === '2D' && bet.number.length === 2) {
       const reversed = bet.number.split('').reverse().join('');
       if (bet.number === reversed) return; // double
 
-      const halfAmount = Math.floor(Number(bet.amount) / 2).toString();
+      const amt1 = firstAmt;
+      const amt2 = hasSplit ? secondAmt : firstAmt;
       
       const newList = [...betList];
       newList.splice(index, 1, 
-        { number: bet.number, amount: halfAmount },
-        { number: reversed, amount: halfAmount }
+        { number: bet.number, amount: amt1 },
+        { number: reversed, amount: amt2 }
       );
       setBetList(newList);
     } else if (betType === '3D' && bet.number.length === 3) {
@@ -130,7 +144,7 @@ const Betting = () => {
       if (permsArray.length <= 1) return;
 
       const newList = [...betList];
-      newList.splice(index, 1, ...permsArray.map(num => ({ number: num, amount: bet.amount })));
+      newList.splice(index, 1, ...permsArray.map(num => ({ number: num, amount: (hasSplit && num !== bet.number) ? secondAmt : firstAmt })));
       setBetList(newList);
     }
   };
@@ -141,7 +155,7 @@ const Betting = () => {
       const maxLength = betType === '2D' ? 2 : 3;
       newList[index].number = value.replace(/\D/g, '').slice(0, maxLength);
     } else {
-      newList[index].amount = value.replace(/\D/g, '');
+      newList[index].amount = value.replace(/[^0-9.]/g, '');
     }
     setBetList(newList);
   };
@@ -181,6 +195,10 @@ const Betting = () => {
     for (const b of validBets) {
       if (b.number.length !== requiredLength) {
         setError(`ဂဏန်း ${b.number} သည် ${requiredLength} လုံး မပြည့်ပါ။`);
+        return;
+      }
+      if (b.amount.includes('.')) {
+        setError(`ဂဏန်း ${b.number} ၏ ပမာဏတွင် အစက် (.) မပါရပါ။ (အာမည် (R) ကို နှိပ်ပါ)`);
         return;
       }
       if (Number(b.amount) < 100) {
@@ -244,56 +262,180 @@ const Betting = () => {
   const [qpDigit, setQpDigit] = useState('');
   const [qpAmount, setQpAmount] = useState('');
 
-  const handleQuickPick = (type: 'double' | 'head' | 'tail' | 'include') => {
-    if (type !== 'double' && (!qpDigit || qpDigit.length !== 1)) {
-      setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။');
+  const handleAdvancedQuickPick = (type: string) => {
+    if (!qpAmount) {
+      setError('ပမာဏ ထည့်ပါ။');
       return;
     }
-    if (!qpAmount || Number(qpAmount) < 100) {
+
+    let firstAmt = qpAmount;
+    let secondAmt = qpAmount;
+    let hasSplit = false;
+
+    if (qpAmount.includes('.')) {
+      const parts = qpAmount.split('.');
+      if (parts.length === 2 && parts[1]) {
+        firstAmt = parts[0];
+        secondAmt = parts[1];
+        hasSplit = true;
+      }
+    }
+
+    if (Number(firstAmt) < 100 || (hasSplit && Number(secondAmt) < 100)) {
       setError('အနည်းဆုံး ထိုးကြေး ၁၀၀ ကျပ် ထည့်ပါ။');
       return;
     }
 
-    let newBets: BetItem[] = [];
-    const amt = qpAmount;
+    let res: { number: string, amount: string }[] = [];
+    const validNums = qpDigit ? qpDigit.split('') : [];
+    const is2D = betType === '2D';
 
-    if (type === 'double') {
-      for (let i = 0; i < 10; i++) {
-        newBets.push({ number: `${i}${i}`, amount: amt });
+    const addBet = (num: string, isPrimary: boolean = false) => {
+      res.push({ number: num, amount: (hasSplit && !isPrimary) ? secondAmt : firstAmt });
+    };
+
+    if (is2D) {
+      switch(type) {
+        case 'အာ': 
+          if (validNums.length < 2) { setError('ဂဏန်း ၂ လုံး ရိုက်ထည့်ပါ။'); return; }
+          const n = qpDigit.padStart(2, '0'); 
+          addBet(n, true); 
+          const reversed = n[1] + n[0]; 
+          if (n !== reversed) addBet(reversed, false); 
+          break;
+        case 'ခွေ': 
+          if (validNums.length < 2) { setError('ဂဏန်း အနည်းဆုံး ၂ လုံး ရိုက်ထည့်ပါ။'); return; }
+          for(let i=0; i<validNums.length; i++) {
+            for(let j=0; j<validNums.length; j++) {
+              if (i !== j) addBet(validNums[i] + validNums[j], false); 
+            }
+          }
+          break;
+        case 'ပူး': 
+          if (validNums.length > 0) validNums.forEach(d => addBet(d + d, false)); 
+          else ['00','11','22','33','44','55','66','77','88','99'].forEach(n => addBet(n, false)); 
+          break;
+        case 'ပါဝါ': ['05','16','27','38','49','50','61','72','83','94'].forEach(n => addBet(n, false)); break;
+        case 'နက္ခတ်': ['07','18','24','35','69','70','81','42','53','96'].forEach(n => addBet(n, false)); break;
+        case 'ညီအစ်ကို': ['01','12','23','34','45','56','67','78','89','90','10','21','32','43','54','65','76','87','98','09'].forEach(n => addBet(n, false)); break;
+        case 'ကိုးညီ': ['18','27','36','45','81','72','63','54'].forEach(n => addBet(n, false)); break;
+        case 'စုံစုံ': for(let i=0; i<=8; i+=2) for(let j=0; j<=8; j+=2) if(i !== j) addBet(`${i}${j}`, false); break;
+        case 'မမ': for(let i=1; i<=9; i+=2) for(let j=1; j<=9; j+=2) if(i !== j) addBet(`${i}${j}`, false); break;
+        case 'စုံမ': for(let i=0; i<=8; i+=2) for(let j=1; j<=9; j+=2) addBet(`${i}${j}`, false); break;
+        case 'မစုံ': for(let i=1; i<=9; i+=2) for(let j=0; j<=8; j+=2) addBet(`${i}${j}`, false); break;
+        case 'ဘရိတ်': 
+          if (validNums.length === 0) { setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။'); return; }
+          const b = parseInt(validNums[0], 10); 
+          for(let i=0; i<=9; i++) for(let j=0; j<=9; j++) if(!isNaN(b) && (i+j)%10 === b) addBet(`${i}${j}`, false); 
+          break;
+        case 'ထိပ်': 
+          if (validNums.length === 0) { setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။'); return; }
+          validNums.forEach(d => { for(let i=0; i<=9; i++) addBet(d+i, false); }); 
+          break;
+        case 'ပိတ်': 
+          if (validNums.length === 0) { setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။'); return; }
+          validNums.forEach(d => { for(let i=0; i<=9; i++) addBet(i+d, false); }); 
+          break;
+        case 'အပါ': 
+          if (validNums.length === 0) { setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။'); return; }
+          validNums.forEach(d => { for (let i = 0; i <= 9; i++) { addBet(`${d}${i}`, false); addBet(`${i}${d}`, false); } }); 
+          break;
+        case 'ဝမ်းချိန်း': 
+          if (validNums.length < 2) { setError('ဂဏန်း အနည်းဆုံး ၂ လုံး ရိုက်ထည့်ပါ။'); return; }
+          for(let i=0; i<validNums.length; i++) for(let j=0; j<validNums.length; j++) addBet(validNums[i] + validNums[j], false); 
+          break;
       }
-    } else if (type === 'head') {
-      for (let i = 0; i < 10; i++) {
-        newBets.push({ number: `${qpDigit}${i}`, amount: amt });
+    } else {
+      // 3D Logic
+      switch(type) {
+        case 'အာ': 
+          if (validNums.length < 3) { setError('ဂဏန်း ၃ လုံး ရိုက်ထည့်ပါ။'); return; }
+          const n = qpDigit.padStart(3, '0');
+          const getPermutations = (str: string): string[] => {
+            if (str.length <= 1) return [str];
+            const permutations: string[] = [];
+            const smallerPerms = getPermutations(str.slice(1));
+            const firstChar = str[0];
+            for (const perm of smallerPerms) {
+              for (let i = 0; i <= perm.length; i++) {
+                permutations.push(perm.slice(0, i) + firstChar + perm.slice(i));
+              }
+            }
+            return [...new Set(permutations)];
+          };
+          const perms = getPermutations(n);
+          perms.forEach(p => addBet(p, p === n));
+          break;
+        case 'ခွေ': 
+          if (validNums.length < 3) { setError('ဂဏန်း အနည်းဆုံး ၃ လုံး ရိုက်ထည့်ပါ။'); return; }
+          const getPermutationsFromDigits = (digits: string[], length: number): string[] => {
+            const results: string[] = [];
+            function permute(arr: string[], m: string[] = []) {
+                if (m.length === length) {
+                    results.push(m.join(''));
+                    return;
+                }
+                for (let i = 0; i < arr.length; i++) {
+                    const curr = arr.slice();
+                    const next = curr.splice(i, 1);
+                    permute(curr.slice(), m.concat(next));
+                }
+            }
+            permute(digits);
+            return [...new Set(results)];
+          };
+          getPermutationsFromDigits(validNums, 3).forEach(p => addBet(p, false));
+          break;
+        case 'ထိပ်':
+          if (validNums.length === 0) { setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။'); return; }
+          validNums.forEach(d => {
+              for (let i = 0; i <= 99; i++) {
+                  addBet(d + i.toString().padStart(2, '0'), false);
+              }
+          });
+          break;
+        case 'ပိတ်':
+          if (validNums.length === 0) { setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။'); return; }
+          validNums.forEach(d => {
+              for (let i = 0; i <= 99; i++) {
+                  addBet(i.toString().padStart(2, '0') + d, false);
+              }
+          });
+          break;
+        case 'အပါ':
+          if (validNums.length === 0) { setError('ဂဏန်း ၁ လုံး ရိုက်ထည့်ပါ။'); return; }
+          validNums.forEach(d => {
+              for (let i = 0; i <= 999; i++) {
+                  const s = i.toString().padStart(3, '0');
+                  if (s.includes(d)) addBet(s, false);
+              }
+          });
+          break;
       }
-    } else if (type === 'tail') {
-      for (let i = 0; i < 10; i++) {
-        newBets.push({ number: `${i}${qpDigit}`, amount: amt });
-      }
-    } else if (type === 'include') {
-      const added = new Set<string>();
-      for (let i = 0; i < 10; i++) {
-        const headNum = `${qpDigit}${i}`;
-        const tailNum = `${i}${qpDigit}`;
-        if (!added.has(headNum)) {
-          newBets.push({ number: headNum, amount: amt });
-          added.add(headNum);
-        }
-        if (!added.has(tailNum)) {
-          newBets.push({ number: tailNum, amount: amt });
-          added.add(tailNum);
-        }
+    }
+
+    // Remove duplicates keeping the first occurrence (which is usually the primary)
+    const uniqueBets: { number: string, amount: string }[] = [];
+    const seen = new Set<string>();
+    for (const bet of res) {
+      if (!seen.has(bet.number)) {
+        seen.add(bet.number);
+        uniqueBets.push(bet);
       }
     }
 
     const currentBets = betList.filter(b => b.number || b.amount);
-    setBetList([...currentBets, ...newBets]);
+    setBetList([...currentBets, ...uniqueBets]);
     setQpDigit('');
     setQpAmount('');
     setError('');
   };
 
   const isClosed = status === 'closed';
-  const totalBetAmount = betList.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  const totalBetAmount = betList.reduce((sum, b) => {
+    const amt = b.amount.split('.')[0];
+    return sum + (Number(amt) || 0);
+  }, 0);
 
   return (
     <div className="p-4 space-y-6 pb-24">
@@ -379,31 +521,52 @@ const Betting = () => {
         </div>
       )}
 
-      {betType === '2D' && !isClosed && (
+      {!isClosed && (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">အမြန်ရွေးချယ်မှု</h3>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">အမြန်ရွေးချယ်မှု ({betType})</h3>
           <div className="flex space-x-2 mb-3">
             <input
               type="text"
-              maxLength={1}
+              maxLength={betType === '2D' ? 2 : 3}
               value={qpDigit}
               onChange={(e) => setQpDigit(e.target.value.replace(/\D/g, ''))}
               placeholder="ဂဏန်း"
-              className="w-16 px-3 py-2 text-center font-mono border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-20 px-3 py-2 text-center font-mono border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
             <input
               type="text"
               value={qpAmount}
-              onChange={(e) => setQpAmount(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setQpAmount(e.target.value.replace(/[^0-9.]/g, ''))}
               placeholder="ပမာဏ"
               className="flex-1 px-3 py-2 font-mono border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
           <div className="grid grid-cols-4 gap-2">
-            <button onClick={() => handleQuickPick('head')} className="py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">ထိပ်</button>
-            <button onClick={() => handleQuickPick('tail')} className="py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">ပိတ်</button>
-            <button onClick={() => handleQuickPick('include')} className="py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">အပါ</button>
-            <button onClick={() => handleQuickPick('double')} className="py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg text-sm font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition">အပူး</button>
+            {betType === '2D' ? (
+              <>
+                {['အာ','ခွေ','ပူး','ပါဝါ','နက္ခတ်','ညီအစ်ကို','ဘရိတ်','ထိပ်','ပိတ်','အပါ','ဝမ်းချိန်း','ကိုးညီ','စုံစုံ','မမ','စုံမ','မစုံ'].map((btn) => (
+                  <button 
+                    key={btn} 
+                    onClick={() => handleAdvancedQuickPick(btn)} 
+                    className="py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition"
+                  >
+                    {btn}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                {['အာ', 'ခွေ', 'ထိပ်', 'ပိတ်', 'အပါ'].map((btn) => (
+                  <button 
+                    key={btn} 
+                    onClick={() => handleAdvancedQuickPick(btn)} 
+                    className="py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg text-xs font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition"
+                  >
+                    {btn}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </div>
       )}
