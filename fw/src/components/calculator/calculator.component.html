@@ -1,0 +1,470 @@
+<div class="h-full flex flex-col bg-black">
+  <!-- Input Section -->
+  <div class="bg-slate-900 px-3 pt-2 pb-2 border-b border-slate-800 shrink-0">
+    <div class="flex justify-between items-center mb-1.5 px-1 relative">
+      <button (click)="isEditingName.set(true)" class="flex items-center gap-1">
+        <span class="text-slate-400 text-[9px] font-black uppercase">{{ personalShopName() }}</span>
+        <app-edit3-icon [size]="10" class="text-slate-600"></app-edit3-icon>
+      </button>
+
+      <div class="flex gap-2">
+        <div class="flex bg-slate-800 rounded-md border border-slate-700 p-0.5">
+          @for (c of ['K', '฿', '¥']; track c) {
+            <button 
+              (click)="currency.set($any(c))"
+              class="px-2 py-0.5 rounded text-[9px] font-black transition-all"
+              [class.bg-amber-600]="currency() === c"
+              [class.text-white]="currency() === c"
+              [class.text-slate-500]="currency() !== c"
+            >{{ c }}</button>
+          }
+        </div>
+        <button (click)="toggleGrid()" class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-400 hover:text-amber-500 hover:bg-slate-700 active:scale-95 transition-all shadow-sm" [class.text-amber-500]="showGrid()" [class.border-amber-500]="showGrid()">
+          <app-grid-icon [size]="14"></app-grid-icon>
+        </button>
+        <button (click)="toggleMode()" class="px-3 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-black text-amber-500 hover:bg-slate-700 active:scale-95 transition-all shadow-sm">
+          {{ mode() }}
+        </button>
+        <button 
+          (click)="showHistory.set(!showHistory())" 
+          class="px-2 py-0.5 rounded-md bg-slate-800 border text-slate-400 hover:text-amber-500 hover:bg-slate-700 active:scale-95 transition-all shadow-sm flex items-center gap-1" 
+          [class.text-amber-500]="showHistory()" 
+          [class.border-amber-500]="showHistory()"
+          [class.border-slate-700]="!showHistory()"
+        >
+          <app-history-icon [size]="12"></app-history-icon>
+          <span class="text-[9px] font-black uppercase">မှတ်တမ်း</span>
+        </button>
+      </div>
+
+      @if (isEditingName()) {
+        <input 
+            #shopNameInput
+            type="text"
+            autofocus
+            class="absolute left-0 top-0 bg-slate-800 border border-amber-500 rounded px-2 py-0.5 text-[10px] outline-none z-30"
+            [value]="personalShopName()" 
+            (blur)="updateShopName(shopNameInput.value)"
+            (keydown.enter)="updateShopName(shopNameInput.value)"
+        />
+      }
+    </div>
+
+    <div class="flex gap-2 mb-2">
+      <div class="flex-1 space-y-1.5">
+        <input 
+            #numRef type="text" inputMode="decimal" [placeholder]="mode() + ' ဂဏန်း'" 
+            class="w-full bg-slate-800 border border-slate-700 py-2 rounded-lg font-black text-center text-base outline-none text-white focus:border-amber-500 transition-colors"
+            [value]="numInput()" (input)="numInput.set($any($event.target).value)"
+        />
+        <input 
+            #amtRef type="text" inputMode="decimal" 
+            [placeholder]="isReverseMode() ? 'ခွဲမည်' : 'ငွေပမာဏ'" 
+            class="w-full bg-slate-800 border py-2 rounded-lg font-black text-center text-base outline-none text-white focus:border-amber-500 transition-all"
+            [class.border-amber-500]="isReverseMode()"
+            [class.bg-amber-900/20]="isReverseMode()"
+            [class.border-slate-700]="!isReverseMode()"
+            [value]="amtInput()" (input)="amtInput.set($any($event.target).value)"
+            (keydown.enter)="addEntry()"
+        />
+      </div>
+      <button (click)="removeLastEntry()" class="w-14 bg-slate-800 text-slate-400 rounded-lg border border-slate-700 flex flex-col items-center justify-center transition-colors active:bg-rose-500/10 active:text-rose-400">
+        <app-eraser-icon [size]="20" class="mb-0.5"></app-eraser-icon>
+        <span class="text-[8px] font-black uppercase">ပြန်ဖျက်</span>
+      </button>
+    </div>
+    
+    <div class="grid grid-cols-4 gap-1">
+      @for (k of modButtons(); track k) {
+        @let isActive = activeModButton() === k;
+        <button 
+          (click)="applyMode(k)" 
+          class="py-1.5 rounded-md font-black text-[9px] border transition-colors active:border-amber-500 active:text-amber-400"
+          [class.bg-amber-600]="isActive"
+          [class.border-amber-500]="isActive"
+          [class.text-white]="isActive"
+          [class.bg-slate-800]="!isActive"
+          [class.text-slate-400]="!isActive"
+          [class.border-slate-700]="!isActive"
+          [class.hover:bg-slate-700]="!isActive"
+        >{{ k }}</button>
+      }
+    </div>
+  </div>
+  
+  <div class="bg-slate-950 px-3 py-1 flex flex-wrap gap-1 min-h-[48px] items-center border-b border-slate-900 shrink-0">
+    @if (chips().length > 0) {
+      <div class="w-full flex items-center gap-2">
+        <div class="flex-1 flex flex-wrap gap-1">
+          @for(chip of chips(); track $index) {
+              <span class="text-amber-400 text-[8px] font-black border border-amber-500/20 px-1 rounded bg-amber-500/10">{{chip}}</span>
+          }
+        </div>
+        <button (click)="clearChips()" class="text-[7px] text-slate-600 hover:text-slate-400 font-black uppercase self-start pt-0.5">ရှင်းမည်</button>
+      </div>
+      <div class="w-full flex gap-2 mt-1 items-center">
+        <input 
+          placeholder="Set အမည်ပေးပါ"
+          class="flex-1 bg-slate-800 border border-slate-700 text-xs rounded-md px-2 py-1 outline-none focus:border-amber-500 transition-colors"
+          [value]="newSetName()"
+          (input)="newSetName.set($any($event.target).value)"
+          (keydown.enter)="saveCurrentChipsAsSet()"
+        >
+        <button (click)="saveCurrentChipsAsSet()" class="bg-amber-600 text-white px-2.5 py-1 rounded-md active:bg-amber-700">
+          <app-save-icon [size]="16"></app-save-icon>
+        </button>
+      </div>
+    }
+  </div>
+
+  <div class="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 bg-black pb-4 min-h-0 touch-pan-y">
+
+
+    <!-- Number Grid Overlay -->
+    @if (showGrid()) {
+      <div class="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex flex-col animate-in fade-in slide-in-from-bottom-10 duration-200">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900/50 shrink-0">
+            <h2 class="text-amber-500 font-black text-xl uppercase tracking-widest flex items-center gap-2">
+                <app-grid-icon [size]="24"></app-grid-icon>
+                {{ mode() }} Grid
+            </h2>
+            <button (click)="toggleGrid()" class="text-slate-400 hover:text-white p-2 active:scale-90 transition-transform">
+                <app-x-circle-icon [size]="32"></app-x-circle-icon>
+            </button>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+            
+            <!-- Digits Row (Larger) -->
+            <h3 class="text-slate-500 text-xs font-black uppercase mb-2">Digits</h3>
+            <div class="grid grid-cols-5 gap-3 mb-6 pb-6 border-b border-slate-800">
+              @for (d of digits; track d) {
+                <button 
+                  (click)="toggleChip(d)"
+                  class="aspect-square flex items-center justify-center text-2xl font-black rounded-2xl border-2 transition-all active:scale-95 shadow-lg"
+                  [class.bg-amber-600]="chips().includes(d)"
+                  [class.text-white]="chips().includes(d)"
+                  [class.border-amber-500]="chips().includes(d)"
+                  [class.bg-slate-900]="!chips().includes(d)"
+                  [class.text-slate-300]="!chips().includes(d)"
+                  [class.border-slate-700]="!chips().includes(d)"
+                >{{ d }}</button>
+              }
+            </div>
+
+            <h3 class="text-slate-500 text-xs font-black uppercase mb-2">Numbers</h3>
+            @if (mode() === '2D') {
+              <div class="grid grid-cols-5 gap-3 pb-24">
+                @for (n of numbers2D; track n) {
+                  <button 
+                    (click)="toggleChip(n)"
+                    class="aspect-square flex items-center justify-center text-xl font-black rounded-2xl border-2 transition-all active:scale-95 shadow-md"
+                    [class.bg-amber-600]="chips().includes(n)"
+                    [class.text-white]="chips().includes(n)"
+                    [class.border-amber-500]="chips().includes(n)"
+                    [class.bg-slate-900]="!chips().includes(n)"
+                    [class.text-slate-400]="!chips().includes(n)"
+                    [class.border-slate-800]="!chips().includes(n)"
+                  >{{ n }}</button>
+                }
+              </div>
+            } @else {
+              <!-- 3D Tabs -->
+              <div class="flex mb-4 gap-2 overflow-x-auto pb-2 no-scrollbar sticky top-0 bg-black/80 backdrop-blur py-2 z-10">
+                @for (h of numbers3DTabs; track h) {
+                  <button 
+                    (click)="active3DTab.set(h)"
+                    class="px-5 py-3 rounded-xl text-sm font-black border-2 transition-colors shrink-0 min-w-[70px] shadow-sm"
+                    [class.bg-amber-600]="active3DTab() === h"
+                    [class.text-white]="active3DTab() === h"
+                    [class.border-amber-500]="active3DTab() === h"
+                    [class.bg-slate-800]="active3DTab() !== h"
+                    [class.text-slate-400]="active3DTab() !== h"
+                    [class.border-slate-700]="active3DTab() !== h"
+                  >{{ h }}xx</button>
+                }
+              </div>
+              <!-- 3D Grid -->
+              <div class="grid grid-cols-5 gap-3 pb-24">
+                @for (n of current3DGrid(); track n) {
+                  <button 
+                    (click)="toggleChip(n)"
+                    class="aspect-square flex items-center justify-center text-sm font-black rounded-2xl border-2 transition-all active:scale-95 shadow-md"
+                    [class.bg-amber-600]="chips().includes(n)"
+                    [class.text-white]="chips().includes(n)"
+                    [class.border-amber-500]="chips().includes(n)"
+                    [class.bg-slate-900]="!chips().includes(n)"
+                    [class.text-slate-400]="!chips().includes(n)"
+                    [class.border-slate-800]="!chips().includes(n)"
+                  >{{ n }}</button>
+                }
+              </div>
+            }
+        </div>
+        
+        <!-- Bottom Bar with Count and Close -->
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur border-t border-slate-800 flex justify-between items-center z-20" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));">
+             <div class="text-white font-black text-sm">
+                Selected: <span class="text-amber-500 text-lg">{{ chips().length }}</span>
+             </div>
+             <button (click)="toggleGrid()" class="bg-amber-600 text-white px-6 py-3 rounded-xl font-black uppercase shadow-lg shadow-amber-600/20 active:scale-95 transition-transform flex items-center gap-2">
+                <app-save-icon [size]="18"></app-save-icon>
+                Done
+             </button>
+        </div>
+      </div>
+    }
+
+    <!-- History Overlay -->
+    @if (showHistory()) {
+      <div class="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex flex-col animate-in fade-in slide-in-from-bottom-10 duration-200">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900/50 shrink-0">
+            <h2 class="text-amber-500 font-black text-xl uppercase tracking-widest flex items-center gap-2">
+                <app-history-icon [size]="24"></app-history-icon>
+                မှတ်တမ်း (History)
+            </h2>
+            <button (click)="showHistory.set(false)" class="text-slate-400 hover:text-white p-2 active:scale-90 transition-transform">
+                <app-x-circle-icon [size]="32"></app-x-circle-icon>
+            </button>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+            <div class="flex justify-end mb-4">
+                <button (click)="clearHistory()" class="text-xs font-black text-rose-500 hover:text-rose-400 uppercase tracking-tighter border border-rose-500/20 px-4 py-2 rounded-xl hover:bg-rose-500/10 transition-colors flex items-center gap-2">
+                    <app-trash2-icon [size]="16"></app-trash2-icon>
+                    အားလုံးဖျက်မည်
+                </button>
+            </div>
+
+            <div class="space-y-3 pb-24">
+              @for (h of history(); track h.id) {
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-amber-500/50 transition-all group shadow-lg">
+                  <div class="flex justify-between items-start mb-3">
+                    <div>
+                      <p class="text-[10px] text-slate-500 font-mono mb-1">{{ h.timestamp | date:'dd/MM/yyyy h:mm a' }}</p>
+                      <div class="flex items-center gap-2">
+                          <span class="text-xs font-black text-white bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{{ h.mode }}</span>
+                          <span class="text-xs font-bold text-slate-400">{{ h.totalCount }} ကွက်</span>
+                      </div>
+                    </div>
+                    <div class="flex gap-2">
+                      <button (click)="loadHistoryItem(h)" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[10px] font-black hover:bg-amber-700 active:scale-95 transition-all shadow-lg shadow-amber-600/20">
+                        ပြန်ယူမည်
+                      </button>
+                      <button (click)="deleteHistoryItem(h.id)" class="p-1.5 text-slate-500 hover:text-rose-500 bg-slate-800 rounded-lg border border-slate-700 hover:border-rose-500/50 transition-all">
+                        <app-trash2-icon [size]="16"></app-trash2-icon>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="flex flex-wrap gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity mb-3">
+                    @for (item of h.items.slice(0, 15); track $index) {
+                      <span class="text-[10px] font-mono text-slate-300 bg-black px-2 py-1 rounded border border-slate-800">{{ item.n }}</span>
+                    }
+                    @if (h.items.length > 15) {
+                      <span class="text-[10px] font-mono text-slate-500 self-center">...</span>
+                    }
+                  </div>
+                  
+                  <div class="pt-3 border-t border-slate-800 flex justify-end">
+                    <span class="text-sm font-black text-amber-500">{{ h.totalAmount.toLocaleString() }} {{ h.currency }}</span>
+                  </div>
+                </div>
+              } @empty {
+                <div class="text-center py-20 flex flex-col items-center opacity-50">
+                  <app-history-icon [size]="48" class="mb-4 text-slate-600"></app-history-icon>
+                  <p class="text-sm text-slate-500 font-black uppercase tracking-widest">မှတ်တမ်းမရှိသေးပါ</p>
+                  <p class="text-[10px] text-slate-600 mt-2">စာရင်းတင်ပြီးတိုင်း ဤနေရာတွင် သိမ်းဆည်းပေးပါမည်</p>
+                </div>
+              }
+            </div>
+        </div>
+      </div>
+    }
+
+    <!-- Quick Sets -->
+    <div class="mb-4">
+        <h3 class="text-slate-500 font-black text-[10px] uppercase tracking-wider px-1 mb-1">Quick Sets (အမြန်သုံး)</h3>
+        <div class="flex flex-wrap gap-2">
+          @for (set of quickSets(); track set.name) {
+            <div class="relative pt-1 pr-1">
+              <button (click)="loadQuickSet(set)" class="bg-gradient-to-br from-slate-800 to-slate-900 text-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg active:bg-slate-700 border border-slate-700 hover:border-slate-600 transition-colors">
+                {{ set.name }}
+              </button>
+              <button (click)="deleteQuickSet(set.name)" class="absolute -top-0 -right-0 bg-rose-500 rounded-full h-5 w-5 flex items-center justify-center border-2 border-slate-900 hover:scale-110 transition-transform">
+                <app-trash2-icon [size]="10" strokeWidth="3" class="text-white"></app-trash2-icon>
+              </button>
+            </div>
+          }
+        </div>
+    </div>
+    
+    @if (dataList().length === 0) {
+      <div class="h-full flex items-center justify-center opacity-20 flex-col gap-2 pt-10">
+        <app-calculator-icon [size]="36"></app-calculator-icon>
+        <p class="text-[10px] font-black tracking-widest uppercase italic text-center">စာရင်းမရှိသေးပါ</p>
+      </div>
+    } @else {
+        @for (item of dataList(); track item.id) {
+            <div class="flex justify-between items-center bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl">
+            <span class="text-lg font-black text-white">{{ item.n }}</span>
+            <div class="flex items-center gap-4">
+                <span class="text-base font-black text-amber-400">{{ item.a.toLocaleString() }}</span>
+                <button (click)="removeSingleItem(item.id)" class="text-slate-700 hover:text-rose-500 p-1 rounded-full transition-colors">
+                  <app-trash2-icon [size]="16"></app-trash2-icon>
+                </button>
+            </div>
+            </div>
+        }
+    }
+  </div>
+
+  @if (dataList().length > 0 && chips().length === 0) {
+    <div class="bg-slate-900/95 backdrop-blur-md p-3 flex flex-col gap-3 border-t border-slate-800 shadow-2xl shrink-0" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));">
+      <!-- Top Row: Total & Copy -->
+      <div class="flex justify-between items-center px-1">
+        <div class="flex flex-col">
+          <p class="text-[10px] text-slate-500 font-black uppercase tracking-tighter mb-0.5">Total Amount</p>
+          <p class="text-xl font-black text-amber-400 leading-none">{{ totalAmount().toLocaleString() }} {{ currency() }}</p>
+        </div>
+        <button (click)="copyAndClear()" class="bg-amber-600 text-white px-5 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 active:scale-95 shadow-lg shadow-amber-500/20 uppercase transition-transform">
+          <app-copy-icon [size]="16"></app-copy-icon> Copy
+        </button>
+      </div>
+      
+      <!-- Bottom Row: Actions -->
+      <div class="flex gap-2">
+        <button (click)="clearAllEntries()" class="w-12 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20 h-11 flex items-center justify-center active:bg-rose-500/20 transition-colors shrink-0">
+          <app-trash2-icon [size]="18"></app-trash2-icon>
+        </button>
+        <button (click)="printReceipt()" class="w-12 bg-sky-500/10 text-sky-400 rounded-xl border border-sky-500/20 h-11 flex items-center justify-center active:bg-sky-500/20 transition-colors shrink-0">
+          <app-printer-icon [size]="18"></app-printer-icon>
+        </button>
+        <button (click)="shareAsImage()" class="flex-1 bg-emerald-600/10 border border-emerald-600/30 text-emerald-500 h-11 rounded-xl font-black text-[10px] flex items-center justify-center gap-1.5 active:bg-emerald-600/20 uppercase transition-colors">
+          <app-share-icon [size]="16"></app-share-icon> Share
+        </button>
+        <button (click)="downloadReceipt()" class="w-12 bg-slate-800 border border-slate-700 text-slate-400 h-11 rounded-xl flex items-center justify-center active:bg-slate-700 transition-colors shrink-0">
+           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </button>
+        <button (click)="openSendToChat()" class="flex-1 bg-amber-600/10 border border-amber-600/30 text-amber-500 h-11 rounded-xl font-black text-[10px] flex items-center justify-center gap-1.5 active:bg-amber-600/20 uppercase transition-colors">
+          <app-message-circle-icon [size]="16"></app-message-circle-icon> Chat
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (chips().length > 0) {
+    <div class="bg-slate-900 px-2 py-3 border-t border-slate-800 shadow-2xl shrink-0 animate-in slide-in-from-bottom-5 duration-200" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));">
+        <div class="flex items-center gap-2 w-full">
+            <div class="bg-slate-800 text-amber-500 px-2 py-2 rounded-lg font-black text-xs border border-slate-700 min-w-[36px] text-center shrink-0">
+                {{ chips().length }}
+            </div>
+            <input 
+                #quickAmtRef
+                type="text" 
+                inputMode="decimal" 
+                placeholder="Amount" 
+                class="flex-1 min-w-0 bg-slate-950 border border-amber-500/50 text-white font-black text-lg py-2 px-2 rounded-xl outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-all placeholder:text-slate-700 text-center"
+                [value]="quickAmount()"
+                (input)="quickAmount.set($any($event.target).value)"
+                (keydown.enter)="addQuickEntry()"
+            />
+            <button (click)="addQuickEntry()" class="bg-amber-600 text-white px-4 py-2 rounded-xl font-black active:scale-95 shadow-lg shadow-amber-600/20 transition-transform shrink-0">
+                ADD
+            </button>
+        </div>
+    </div>
+  }
+
+  @if (showContactPicker()) {
+    <div class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-sm flex flex-col shadow-2xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-white font-black text-lg">Send to Chat</h3>
+          <button (click)="showContactPicker.set(false)" class="text-slate-500">
+            <app-x-circle-icon [size]="24"></app-x-circle-icon>
+          </button>
+        </div>
+        
+        <p class="text-slate-400 text-xs mb-4">Select a contact to send the receipt image.</p>
+        
+        <div class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+          @for (contact of chatService.contacts(); track contact.userId) {
+            <button 
+              (click)="sendImageToContact(contact)" 
+              class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl flex items-center gap-3 active:bg-slate-700 transition-colors"
+            >
+              <div class="w-8 h-8 rounded-full bg-amber-600 flex items-center justify-center text-white font-black text-[10px] uppercase">
+                {{ contact.name.substring(0,2) }}
+              </div>
+              <span class="text-sm font-bold text-white">{{ contact.name }}</span>
+            </button>
+          } @empty {
+            <div class="text-center py-8 opacity-50">
+              <p class="text-xs text-slate-500">No contacts found.</p>
+            </div>
+          }
+        </div>
+        
+        <button (click)="showContactPicker.set(false)" class="mt-4 w-full text-slate-500 py-2 text-xs">Cancel</button>
+      </div>
+    </div>
+  }
+</div>
+
+@if(isPrinting()) {
+  <app-receipt
+    [shopName]="personalShopName()"
+    [dataList]="dataList()"
+    [totalAmount]="totalAmount()"
+    [totalCount]="totalCount()"
+    [currencySymbol]="currency()">
+  </app-receipt>
+}
+
+<!-- Preview Modal -->
+@if (previewImage(); as img) {
+  <div class="fixed inset-0 z-[200] bg-black flex flex-col animate-in fade-in duration-200">
+      
+      <!-- Header / Close Button -->
+      <div class="absolute top-0 left-0 right-0 p-4 pt-safe flex justify-end z-[210] pointer-events-none" style="padding-top: calc(1rem + env(safe-area-inset-top));">
+         <button (click)="closePreview()" class="pointer-events-auto bg-black/40 backdrop-blur-md border border-white/10 p-2 rounded-full text-white active:bg-white/20 transition-colors shadow-lg cursor-pointer">
+            <app-x-circle-icon [size]="32"></app-x-circle-icon>
+         </button>
+      </div>
+
+      <!-- Scrollable Image Area -->
+      <div class="w-full h-full overflow-y-auto overflow-x-hidden flex flex-col items-center" (click)="closePreview()">
+         <!-- Spacer for top bar -->
+         <div class="w-full h-20 shrink-0"></div>
+         
+         <img [src]="img" 
+              class="w-full max-w-md object-contain shadow-2xl bg-white"
+              (click)="$event.stopPropagation()"
+         >
+         
+         <!-- Spacer for bottom bar -->
+         <div class="w-full h-40 shrink-0"></div>
+      </div>
+      
+      <!-- Bottom Actions -->
+      <div class="absolute bottom-0 left-0 right-0 p-6 pb-safe bg-gradient-to-t from-black/90 via-black/60 to-transparent flex justify-center gap-12 z-[210] pointer-events-none" style="padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));">
+          <button (click)="saveImage(img)" class="pointer-events-auto flex flex-col items-center gap-2 text-white hover:text-amber-400 transition-colors group cursor-pointer">
+              <div class="bg-white/10 p-4 rounded-full backdrop-blur-md group-active:bg-white/30 transition-colors border border-white/10 shadow-lg">
+                  <app-download-icon [size]="24"></app-download-icon>
+              </div>
+              <span class="text-xs font-bold shadow-black drop-shadow-md">Save</span>
+          </button>
+          <button (click)="shareImage(img)" class="pointer-events-auto flex flex-col items-center gap-2 text-white hover:text-amber-400 transition-colors group cursor-pointer">
+              <div class="bg-white/10 p-4 rounded-full backdrop-blur-md group-active:bg-white/30 transition-colors border border-white/10 shadow-lg">
+                  <app-share-icon [size]="24"></app-share-icon>
+              </div>
+              <span class="text-xs font-bold shadow-black drop-shadow-md">Share</span>
+          </button>
+      </div>
+  </div>
+}

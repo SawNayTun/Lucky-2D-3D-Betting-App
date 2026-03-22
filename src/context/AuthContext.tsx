@@ -17,6 +17,7 @@ interface AuthContextType {
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   login: (phone: string, password: string) => Promise<void>;
   register: (phone: string, password: string, username?: string) => Promise<void>;
+  updateProfile: (username: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   isLoading: boolean;
@@ -71,7 +72,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     let deviceId = localStorage.getItem('device_id');
     let installTime = localStorage.getItem('install_time');
     if (!deviceId) {
-      deviceId = 'dev_' + Date.now() + Math.random().toString(36).substr(2, 9);
+      deviceId = crypto.randomUUID ? crypto.randomUUID() : 'dev_' + Date.now() + Math.random().toString(36).substr(2, 9);
       installTime = new Date().toISOString();
       localStorage.setItem('device_id', deviceId);
       localStorage.setItem('install_time', installTime);
@@ -113,6 +114,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     navigate('/');
   };
 
+  const updateProfile = async (username: string) => {
+    const res = await fetchApi('/api/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to update profile');
+    }
+    const data = await res.json();
+    setUser(data);
+  };
+
   const logout = async () => {
     await fetchApi('/api/auth/logout', { method: 'POST' });
     localStorage.removeItem('token');
@@ -121,7 +136,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, register, logout, refreshUser, isLoading }}>
+    <AuthContext.Provider value={{ user, setUser, login, register, updateProfile, logout, refreshUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

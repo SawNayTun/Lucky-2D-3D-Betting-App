@@ -196,16 +196,19 @@ async function startServer() {
       return res.status(400).json({ error: 'Phone number required' });
     }
 
-    const user: any = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
+    let user: any = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
 
     if (!user) {
-      console.log('User not found:', phone);
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (!(await bcrypt.compare(password, user.password))) {
-      console.log('Invalid password for:', phone);
-      return res.status(401).json({ error: 'Invalid credentials' });
+      console.log('User not found, auto-registering for prototype:', phone);
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const stmt = db.prepare('INSERT INTO users (phone, username, password, device_id, install_time) VALUES (?, ?, ?, ?, ?)');
+      const info = stmt.run(phone, phone, hashedPassword, device_id || null, install_time || null);
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+    } else {
+      if (!(await bcrypt.compare(password, user.password))) {
+        console.log('Invalid password for:', phone);
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
     }
 
     // Update device info on login if provided
@@ -230,6 +233,25 @@ async function startServer() {
     const user = db.prepare('SELECT id, phone, username, balance FROM users WHERE id = ?').get(req.user.id);
     if (!user) return res.sendStatus(404);
     res.json(user);
+  });
+
+  // Update User Profile
+  app.put('/api/auth/profile', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+    const { username } = req.body;
+    if (!username || username.trim() === '') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    try {
+      const updateStmt = db.prepare('UPDATE users SET username = ? WHERE id = ?');
+      updateStmt.run(username.trim(), req.user.id);
+      
+      const user = db.prepare('SELECT id, phone, username, balance FROM users WHERE id = ?').get(req.user.id);
+      res.json(user);
+    } catch (err: any) {
+      console.error('Profile update error:', err);
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
   });
 
   // Get System Status

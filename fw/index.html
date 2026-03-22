@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="application-name" content="Future World">
+  <title>Future World</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <!-- Theme color matches the header background (slate-900) -->
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      overscroll-behavior-y: none; /* Prevents pull-to-refresh on Android */
+      -webkit-tap-highlight-color: transparent; /* Removes blue tap box */
+      touch-action: manipulation;
+    }
+    /* Hide scrollbars for a more native feel */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #000; 
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #333; 
+      border-radius: 2px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555; 
+    }
+
+    @media print {
+      /* Hide everything by default */
+      body * {
+        visibility: hidden;
+      }
+      
+      /* Reset layout constraints that might clip content */
+      html, body, app-root, main, .h-screen, .overflow-hidden {
+        height: auto !important;
+        overflow: visible !important;
+        position: static !important;
+        background-color: white !important;
+      }
+
+      /* Target the receipt specifically */
+      .receipt-container, .receipt-container * {
+        visibility: visible;
+      }
+
+      .receipt-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: white;
+        color: black;
+      }
+      
+      @page {
+        size: 58mm auto;
+        margin: 3mm; /* Small margin for the hardware printer */
+      }
+    }
+    /* Custom Scrollbar for Chat */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "rxjs": "https://esm.sh/rxjs@^7.8.2?conditions=es2015",
+    "rxjs/operators": "https://esm.sh/rxjs@^7.8.2/operators?conditions=es2015",
+    "rxjs/ajax": "https://esm.sh/rxjs@^7.8.2/ajax?conditions=es2015",
+    "rxjs/webSocket": "https://esm.sh/rxjs@^7.8.2/webSocket?conditions=es2015",
+    "rxjs/testing": "https://esm.sh/rxjs@^7.8.2/testing?conditions=es2015",
+    "rxjs/fetch": "https://esm.sh/rxjs@^7.8.2/fetch?conditions=es2015",
+    "@angular/common": "https://esm.sh/@angular/common@^21.1.2?external=rxjs",
+    "@angular/common/http": "https://esm.sh/@angular/common@^21.1.2/http?external=rxjs",
+    "@angular/platform-browser": "https://esm.sh/@angular/platform-browser@^21.1.2?external=rxjs",
+    "@angular/core": "https://esm.sh/@angular/core@^21.1.2?external=rxjs",
+    "@angular/compiler": "https://esm.sh/@angular/compiler@^21.1.2?external=rxjs",
+    "@angular/forms": "https://esm.sh/@angular/forms@^21.1.2?external=rxjs",
+    "@google/genai": "https://esm.sh/@google/genai@^1.39.0?external=rxjs",
+    "firebase/database": "https://esm.sh/firebase@^12.8.0/database?external=rxjs",
+    "firebase/app": "https://esm.sh/firebase@^12.8.0/app?external=rxjs",
+    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.2?external=rxjs",
+    "firebase/": "https://esm.sh/firebase@^12.10.0/"
+  }
+}
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('SW Registered');
+        })
+        .catch(error => {
+          console.log('SW Failed: ', error);
+        });
+    });
+  }
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-black select-none">
+  <app-root></app-root>
+</body>
+</html>

@@ -1,0 +1,113 @@
+@switch (appState()) {
+  @case ('initializing') {
+    <div class="h-[100dvh] bg-black flex items-center justify-center">
+      <p class="text-white font-black animate-pulse">Loading data...</p>
+    </div>
+  }
+  @case ('error') {
+    <div class="h-[100dvh] bg-black flex flex-col items-center justify-center p-6 text-white">
+      <div class="w-full max-w-sm bg-slate-900 border border-rose-500/30 p-8 rounded-3xl text-center">
+        <h1 class="text-xl font-black mb-1 text-rose-500">Application Error</h1>
+        <p class="text-xs text-slate-400">Could not load data from your browser's storage. Please try again.</p>
+        <button (click)="retry()" class="w-full bg-amber-600 p-3 mt-6 rounded-xl font-black text-sm hover:bg-amber-500 transition-colors">
+          Retry
+        </button>
+      </div>
+    </div>
+  }
+  @case ('login') {
+    <app-login 
+      mode="token"
+      [shopName]="adminSettings()?.shopName || 'Future World'" 
+      [loginError]="loginError()"
+      [isLoggingIn]="isLoggingIn()"
+      (loginAttempt)="handleLogin($event)"
+      (inputChange)="clearLoginError()">
+    </app-login>
+  }
+  @case ('pin-lock') {
+    <app-login
+      mode="pin"
+      [currentUser]="currentUser()"
+      [loginError]="loginError()"
+      [isLoggingIn]="isLoggingIn()"
+      (pinLoginAttempt)="handlePinLogin($event)"
+      (inputChange)="clearLoginError()"
+      (logout)="handleLogout()">
+    </app-login>
+  }
+  @case ('set-pin') {
+    <app-login
+      mode="set-pin"
+      [currentUser]="currentUser()"
+      (pinSetAttempt)="handleSetPin($event)"
+      (skipPin)="handleSkipPin()">
+    </app-login>
+  }
+  @case ('scanner') {
+    <app-scanner 
+        (close)="closeScanner()"
+        (userIdFound)="handleUserFound($event)"
+    ></app-scanner>
+  }
+  @case ('chat') {
+    @if (currentUser(); as user) {
+        <app-chat 
+            [user]="user" 
+            (close)="closeChat()"
+            (openScanner)="openScanner()"
+        ></app-chat>
+    }
+  }
+  @case ('app') {
+    <div class="h-[100dvh] bg-black text-white flex flex-col overflow-hidden landscape:overflow-auto landscape:h-auto">
+      <header class="px-3 pb-2 bg-slate-900 border-b border-slate-800 flex justify-between items-center shrink-0 relative" style="padding-top: calc(0.5rem + env(safe-area-inset-top));">
+        <div class="flex items-center gap-2">
+          <app-store-icon [size]="14" class="text-amber-400"></app-store-icon>
+          <span class="text-[10px] font-black uppercase text-slate-200">{{ adminSettings()?.shopName }}</span>
+        </div>
+        
+        @if (currentUser(); as user) {
+          @let status = userExpiryStatus();
+          @if(status) {
+            <div class="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 bg-slate-950/50 px-3 py-1 rounded-full border border-slate-800">
+              <span class="text-xs font-bold text-slate-300">{{ user.name }}</span>
+              <span class="text-[9px] font-mono px-1.5 py-0.5 rounded" [class]="status.colorClass">{{ status.text }}</span>
+            </div>
+          }
+        }
+
+        <div class="flex gap-4">
+          <!-- Chat Button enabled for everyone now -->
+           <button (click)="openChat()" class="text-white hover:text-emerald-400 transition-colors relative">
+              <app-message-circle-icon [size]="18"></app-message-circle-icon>
+           </button>
+
+          <button (click)="openScanner()" class="text-white hover:text-amber-400 transition-colors">
+            <app-camera-icon [size]="18"></app-camera-icon>
+          </button>
+          
+          @if (isAdmin()) {
+            <button (click)="toggleTab()" class="text-amber-400 hover:text-amber-300 transition-colors">
+              @if (activeTab() === 'calc') {
+                <app-users-icon [size]="18"></app-users-icon>
+              } @else {
+                <app-calculator-icon [size]="18"></app-calculator-icon>
+              }
+            </button>
+          }
+          <button (click)="handleLogout()" class="text-rose-500 hover:text-rose-400 transition-colors">
+            <app-logout-icon [size]="18"></app-logout-icon>
+          </button>
+        </div>
+      </header>
+      <main class="flex-1 flex flex-col min-h-0 overflow-hidden landscape:overflow-visible landscape:h-auto">
+        @if (activeTab() === 'admin' && isAdmin()) {
+          <app-admin-panel></app-admin-panel>
+        } @else {
+          <app-calculator [defaultShopName]="adminSettings()?.shopName || 'Future World'"></app-calculator>
+        }
+      </main>
+    </div>
+  }
+}
