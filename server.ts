@@ -41,10 +41,11 @@ onValue(usersRef, (snapshot) => {
             updateStmt.run(balance, numericId);
             
             // Sync to dealer_customers for all accepted friends
-            const friends = usersData[userId].friends;
-            if (friends) {
-              Object.keys(friends).forEach(dealerId => {
-                if (friends[dealerId].status === 'accepted') {
+            const contacts = usersData[userId].contacts;
+            if (contacts) {
+              Object.keys(contacts).forEach(dealerId => {
+                // Dealer app doesn't always set status: 'accepted', so we treat existence as accepted
+                if (!contacts[dealerId].status || contacts[dealerId].status === 'accepted') {
                   const dealerCustomerBalanceRef = ref(database, `dealer_customers/${dealerId}/${userId}/balance`);
                   set(dealerCustomerBalanceRef, balance).catch(console.error);
                 }
@@ -81,6 +82,28 @@ onValue(dealerCustomersRef, (snapshot) => {
             if (!isNaN(numericId)) {
               const userRecord: any = selectStmt.get(numericId);
               if (userRecord && userRecord.balance !== balance) {
+                const diff = balance - userRecord.balance;
+                const type = diff > 0 ? 'deposit' : 'withdraw';
+                const absDiff = Math.abs(diff);
+
+                // Update transaction status in SQLite to approved if balance changed
+                // (Fallback in case transaction_updates sync fails)
+                const selectTxStmt = db.prepare(`
+                  SELECT id FROM transactions 
+                  WHERE user_id = ? AND type = ? AND amount = ? AND status = 'pending'
+                  ORDER BY created_at ASC LIMIT 1
+                `);
+                const tx = selectTxStmt.get(numericId, type, absDiff);
+                
+                if (tx) {
+                  const updateTxStmt = db.prepare(`
+                    UPDATE transactions 
+                    SET status = 'approved' 
+                    WHERE id = ?
+                  `);
+                  updateTxStmt.run(tx.id);
+                }
+
                 updateStmt.run(balance, numericId);
                 // Also update users node in Firebase to keep it in sync
                 const userBalanceRef = ref(database, `users/${playerId}/balance`);
@@ -97,6 +120,45 @@ onValue(dealerCustomersRef, (snapshot) => {
     } catch (err) {
       console.error('Failed to sync balance from dealer_customers:', err);
     }
+  }
+});
+
+// Sync Transaction Status Updates from Firebase
+const transactionUpdatesRef = ref(database, 'transaction_updates');
+onValue(transactionUpdatesRef, (snapshot) => {
+  const data = snapshot.val();
+  if (data) {
+    console.log('Syncing transaction status updates from Firebase...');
+    const updateTxStmt = db.prepare(`
+      UPDATE transactions 
+      SET status = ? 
+      WHERE id = ? AND user_id = ?
+    `);
+    
+    const updateTxByFirebaseIdStmt = db.prepare(`
+      UPDATE transactions 
+      SET status = ? 
+      WHERE user_id = ? AND type = ? AND amount = ? AND status = 'pending'
+      ORDER BY created_at ASC LIMIT 1
+    `);
+
+    Object.keys(data).forEach((userId) => {
+      const userUpdates = data[userId];
+      Object.keys(userUpdates).forEach((requestId) => {
+        const update = userUpdates[requestId];
+        const numericUserId = parseInt(userId, 10);
+        
+        if (!isNaN(numericUserId)) {
+          // Try to update by requestId first (if stored)
+          // Since we don't store requestId in SQLite yet, we match by type/amount/user
+          updateTxByFirebaseIdStmt.run(update.status, numericUserId, update.type, update.amount);
+          
+          // After syncing, we can remove the update from Firebase to keep it clean
+          const specificUpdateRef = ref(database, `transaction_updates/${userId}/${requestId}`);
+          set(specificUpdateRef, null).catch(console.error);
+        }
+      });
+    });
   }
 });
 
@@ -491,6 +553,26 @@ async function startServer() {
   app.get('/api/transactions', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
     const transactions = db.prepare('SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
     res.json(transactions);
+  });
+
+  // Delete Transaction
+  app.delete('/api/transactions/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    try {
+      const numericId = parseInt(id, 10);
+      if (isNaN(numericId)) {
+        return res.status(400).json({ error: 'Invalid ID' });
+      }
+      const stmt = db.prepare('DELETE FROM transactions WHERE id = ? AND user_id = ?');
+      const info = stmt.run(numericId, req.user.id);
+      if (info.changes === 0) {
+        return res.status(404).json({ error: 'Transaction not found or unauthorized' });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Delete transaction error:', err);
+      res.status(500).json({ error: 'Failed to delete transaction' });
+    }
   });
 
 

@@ -115,35 +115,44 @@ const DealerChat = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Extract UUID from "Name-UUID" format if necessary
+  const extractUuid = (input: string) => {
+    if (!input) return '';
+    const trimmed = input.trim();
+    const uuidMatch = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    return uuidMatch ? uuidMatch[0] : trimmed;
+  };
+
   useEffect(() => {
     if (!user?.id) return;
 
-    // Listen to friends list from Firebase
-    const friendsRef = ref(database, `users/${user.id}/friends`);
-    const unsubscribeFriends = onValue(friendsRef, (snapshot) => {
+    // Listen to contacts list from Firebase
+    const contactsRef = ref(database, `users/${user.id}/contacts`);
+    const unsubscribeContacts = onValue(contactsRef, (snapshot) => {
       const data = snapshot.val();
-      const friendsList: DealerFriend[] = data ? Object.keys(data).map(key => ({
+      const contactsList: DealerFriend[] = data ? Object.keys(data).map(key => ({
         id: key,
-        ...data[key]
+        ...data[key],
+        status: data[key].status || 'accepted' // Default to accepted if status is missing (dealer app doesn't set it)
       })) : [];
       
-      setFriends(friendsList);
+      setFriends(contactsList);
 
-      // Sync selectedDealer with updated data from friends list
+      // Sync selectedDealer with updated data from contacts list
       setSelectedDealer(prev => {
         if (!prev) return null;
-        const updated = friendsList.find(f => f.id === prev.id);
+        const updated = contactsList.find(f => f.id === prev.id);
         if (!updated) return null; // Dealer removed user
         return updated;
       });
 
       // Handle initial selection only once
-      if (!isInitialized && friendsList.length > 0) {
+      if (!isInitialized && contactsList.length > 0) {
         const state = location.state as { justSubmitted?: boolean; dealerId?: string };
         const targetId = state?.dealerId || localStorage.getItem(`last_dealer_id_${user?.id}`);
         
         if (targetId) {
-          const dealer = friendsList.find((f: any) => f.id === targetId);
+          const dealer = contactsList.find((f: any) => f.id === targetId);
           if (dealer && dealer.status === 'accepted') {
             setSelectedDealer(dealer);
             if (state?.dealerId) {
@@ -157,7 +166,7 @@ const DealerChat = () => {
       }
     });
 
-    return () => unsubscribeFriends();
+    return () => unsubscribeContacts();
   }, [user?.id, location.state, isInitialized]);
 
   useEffect(() => {
@@ -267,30 +276,43 @@ const DealerChat = () => {
   }, [messages, isTyping]);
 
   const handleAddFriend = async (id: string) => {
-    const trimmedId = id.trim();
-    if (!trimmedId || !user?.id) return;
+    const trimmedId = extractUuid(id.trim());
+    if (!trimmedId || !user?.id) {
+      alert('ဒိုင် ID ထည့်ပေးပါ။');
+      return;
+    }
     
+    // Basic UUID validation (8-4-4-4-12 format)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(trimmedId)) {
+      alert('မှားယွင်းသော ဒိုင် ID ပုံစံဖြစ်နေပါသည်။');
+      return;
+    }
+
     if (friends.some(f => f.id === trimmedId)) {
       alert('ဤဒိုင်ကို Friend အပ်ပြီးသားဖြစ်ပါသည်။');
       return;
     }
 
     try {
-      // 1. Add to user's friends list as pending
-      const userFriendRef = ref(database, `users/${user.id}/friends/${trimmedId}`);
-      await set(userFriendRef, {
+      // 1. Add to user's contacts list as pending
+      const userContactRef = ref(database, `users/${user.id}/contacts/${trimmedId}`);
+      await set(userContactRef, {
         name: `ဒိုင် (${trimmedId.substring(0, 6)}...)`,
         addedAt: Date.now(),
         status: 'pending'
       });
 
       // 2. Send request to dealer's request node
-      const requestRef = ref(database, `friend_requests/${trimmedId}/${user.id}`);
+      const requestRef = ref(database, `requests/${trimmedId}/${user.id}`);
       await set(requestRef, {
-        userId: user.id,
+        id: user.id,
+        senderId: user.id,
+        senderName: user.username || user.phone,
         username: user.username || user.phone,
         phone: user.phone,
-        timestamp: Date.now(),
+        timestamp: serverTimestamp(),
+        type: 'friend',
         status: 'pending'
       });
 
@@ -313,10 +335,10 @@ const DealerChat = () => {
     if (!friendToDelete || !user?.id) return;
     
     try {
-      // Remove from user's friends
-      await set(ref(database, `users/${user.id}/friends/${friendToDelete}`), null);
+      // Remove from user's contacts
+      await set(ref(database, `users/${user.id}/contacts/${friendToDelete}`), null);
       // Also remove the request from dealer's node
-      await set(ref(database, `friend_requests/${friendToDelete}/${user.id}`), null);
+      await set(ref(database, `requests/${friendToDelete}/${user.id}`), null);
       
       if (selectedDealer?.id === friendToDelete) {
         setSelectedDealer(null);

@@ -87,10 +87,10 @@ const Home = () => {
           <Wallet className="text-blue-200 opacity-80" size={28} />
         </div>
         <div className="flex space-x-3 mt-4">
-          <Link to="/wallet" className="flex-1 bg-white/20 hover:bg-white/30 text-white text-sm font-medium py-2 rounded-lg text-center backdrop-blur-sm transition">
+          <Link to="/wallet" state={{ tab: 'topup' }} className="flex-1 bg-white/20 hover:bg-white/30 text-white text-sm font-medium py-2 rounded-lg text-center backdrop-blur-sm transition">
             ငွေဖြည့်
           </Link>
-          <Link to="/wallet" className="flex-1 bg-white/20 hover:bg-white/30 text-white text-sm font-medium py-2 rounded-lg text-center backdrop-blur-sm transition">
+          <Link to="/wallet" state={{ tab: 'withdraw' }} className="flex-1 bg-white/20 hover:bg-white/30 text-white text-sm font-medium py-2 rounded-lg text-center backdrop-blur-sm transition">
             ငွေထုတ်
           </Link>
         </div>

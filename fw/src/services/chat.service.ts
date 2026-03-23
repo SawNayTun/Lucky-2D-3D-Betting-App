@@ -20,9 +20,18 @@ export interface ChatContact {
 }
 
 export interface FriendRequest {
+  id?: string;
   senderId: string;
   senderName: string;
-  timestamp: number;
+  timestamp: any;
+  type?: string;
+  status?: string;
+  phone?: string;
+  amount?: number;
+  screenshotUrl?: string;
+  paymentMethod?: string;
+  accountName?: string;
+  accountNumber?: string;
 }
 
 @Injectable({
@@ -56,7 +65,7 @@ export class ChatService {
 
     try {
       this.app = initializeApp(firebaseConfig);
-      this.db = getDatabase(this.app);
+      this.db = getDatabase(this.app, firebaseConfig.databaseURL);
       
       // Monitor connection status properly
       const connectedRef = ref(this.db, '.info/connected');
@@ -113,19 +122,144 @@ export class ChatService {
 
   // --- 2. Friend Request Logic ---
 
-  async sendFriendRequest(myId: string, myName: string, targetId: string) {
-    if (!this.db) return;
+  async sendFriendRequest(playerId: string, playerName: string, dealerIdInput: string) {
+    let dealerId = dealerIdInput.trim();
     
-    if (myId === targetId) throw new Error("Cannot add yourself.");
+    // Extract UUID from Name-UUID format if present (Matching Dealer App logic)
+    if (dealerId.includes('-')) {
+      const parts = dealerId.split('-');
+      if (parts.length >= 5) {
+        const possibleUuid = parts.slice(-5).join('-');
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(possibleUuid)) {
+          dealerId = possibleUuid;
+        } else {
+          dealerId = parts[parts.length - 1];
+        }
+      } else {
+        dealerId = parts[parts.length - 1];
+      }
+    }
 
-    // Write to target's request bucket
-    const requestRef = ref(this.db, `requests/${targetId}/${myId}`);
+    console.log(`Sending Friend Request: Path=requests/${dealerId}, Sender=${playerName} (${playerId})`);
     
-    await set(requestRef, {
-      senderId: myId,
-      senderName: myName,
-      timestamp: Date.now()
-    });
+    if (!this.db) {
+        console.error('Database not initialized');
+        return false;
+    }
+    
+    if (!playerId || !dealerId) {
+        console.error('Missing playerId or dealerId');
+        return false;
+    }
+
+    if (playerId === dealerId) {
+        console.error('Cannot add yourself');
+        return false;
+    }
+
+    try {
+      // Unique ID တစ်ခုဖန်တီးရန် push ကိုအသုံးပြုပါ
+      const newRequestRef = push(ref(this.db, `requests/${dealerId}`));
+      const uniqueReqId = newRequestRef.key;
+
+      const payload = {
+        id: uniqueReqId,
+        senderId: playerId,
+        senderName: playerName,
+        username: playerName, // Added for compatibility with Dealer App
+        type: 'friend',
+        status: 'pending',
+        timestamp: serverTimestamp()
+      };
+
+      console.log('Writing payload to Firebase:', payload);
+      await set(newRequestRef, payload);
+
+      console.log('Friend request sent successfully!');
+      return true;
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      return false;
+    }
+  }
+
+  async sendDepositRequest(playerId: string, playerName: string, dealerIdInput: string, amount: number, screenshotUrl: string) {
+    let dealerId = dealerIdInput.trim();
+    if (dealerId.includes('-')) {
+        const parts = dealerId.split('-');
+        dealerId = parts[parts.length - 1];
+        if (dealerId.length < 30 && parts.length >= 5) dealerId = parts.slice(-5).join('-');
+    }
+
+    if (!this.db) return false;
+    
+    try {
+      const newRequestRef = push(ref(this.db, `requests/${dealerId}`));
+      const uniqueReqId = newRequestRef.key;
+
+      await set(newRequestRef, {
+        id: uniqueReqId,
+        senderId: playerId,
+        senderName: playerName,
+        username: playerName,
+        amount: amount,
+        screenshotUrl: screenshotUrl, // ငွေလွှဲပြေစာ ပုံလင့်ခ်
+        type: 'deposit',
+        status: 'pending',
+        timestamp: serverTimestamp()
+      });
+
+      console.log('Deposit request sent successfully!');
+      return true;
+    } catch (error) {
+      console.error('Error sending deposit request:', error);
+      return false;
+    }
+  }
+
+  async sendWithdrawRequest(
+    playerId: string, 
+    playerName: string, 
+    dealerIdInput: string, 
+    amount: number,
+    paymentMethod: string, // KPay, WavePay, etc.
+    accountName: string,
+    accountNumber: string
+  ) {
+    let dealerId = dealerIdInput.trim();
+    if (dealerId.includes('-')) {
+        const parts = dealerId.split('-');
+        dealerId = parts[parts.length - 1];
+        if (dealerId.length < 30 && parts.length >= 5) dealerId = parts.slice(-5).join('-');
+    }
+
+    if (!this.db) return false;
+    
+    try {
+      const newRequestRef = push(ref(this.db, `requests/${dealerId}`));
+      const uniqueReqId = newRequestRef.key;
+
+      await set(newRequestRef, {
+        id: uniqueReqId,
+        senderId: playerId,
+        senderName: playerName,
+        username: playerName,
+        amount: amount,
+        paymentMethod: paymentMethod,
+        accountName: accountName,
+        accountNumber: accountNumber,
+        type: 'withdraw',
+        status: 'pending',
+        timestamp: serverTimestamp()
+      });
+
+      console.log('Withdraw request sent successfully!');
+      return true;
+    } catch (error) {
+      console.error('Error sending withdraw request:', error);
+      return false;
+    }
   }
 
   async acceptFriendRequest(myId: string, myName: string, request: FriendRequest) {
@@ -153,16 +287,101 @@ export class ChatService {
       lastTimestamp: Date.now()
     };
 
-    // 3. Delete the Request
-    updates[`requests/${myId}/${otherId}`] = null;
+    // 3. Initialize customer record for balance tracking
+    updates[`dealer_customers/${myId}/${otherId}`] = {
+      id: otherId,
+      name: otherName,
+      balance: 0,
+      isBanned: false,
+      joinedAt: serverTimestamp()
+    };
+
+    // 4. Delete the Request (using the push ID)
+    updates[`requests/${myId}/${request.id}`] = null;
 
     // Perform atomic update
     await update(ref(this.db), updates);
   }
 
-  async rejectFriendRequest(myId: string, senderId: string) {
+  async rejectFriendRequest(myId: string, requestId: string) {
     if (!this.db) return;
-    await remove(ref(this.db, `requests/${myId}/${senderId}`));
+    await remove(ref(this.db, `requests/${myId}/${requestId}`));
+  }
+
+  // --- 3. Deposit & Withdrawal Logic ---
+
+  async acceptDeposit(myId: string, req: FriendRequest) {
+    if (!this.db || !req.amount) return;
+
+    const customerRef = ref(this.db, `dealer_customers/${myId}/${req.senderId}/balance`);
+    onValue(customerRef, async (snapshot) => {
+      const currentBalance = snapshot.val() || 0;
+      const newBalance = currentBalance + Number(req.amount);
+      
+      const updates: any = {};
+      updates[`dealer_customers/${myId}/${req.senderId}/balance`] = newBalance;
+      updates[`requests/${myId}/${req.id}`] = null;
+      
+      // Update transaction status for player app sync
+      updates[`transaction_updates/${req.senderId}/${req.id}`] = {
+        status: 'approved',
+        type: 'deposit',
+        amount: req.amount,
+        timestamp: serverTimestamp()
+      };
+      
+      await update(ref(this.db!), updates);
+    }, { onlyOnce: true });
+  }
+
+  async acceptWithdraw(myId: string, req: FriendRequest) {
+    if (!this.db || !req.amount) return;
+
+    const customerRef = ref(this.db, `dealer_customers/${myId}/${req.senderId}/balance`);
+    onValue(customerRef, async (snapshot) => {
+      const currentBalance = snapshot.val() || 0;
+      const amount = Number(req.amount);
+      
+      if (currentBalance < amount) {
+        alert('လက်ကျန်ငွေ မလုံလောက်ပါ။');
+        return;
+      }
+      
+      const newBalance = currentBalance - amount;
+      
+      const updates: any = {};
+      updates[`dealer_customers/${myId}/${req.senderId}/balance`] = newBalance;
+      updates[`requests/${myId}/${req.id}`] = null;
+      
+      // Update transaction status for player app sync
+      updates[`transaction_updates/${req.senderId}/${req.id}`] = {
+        status: 'approved',
+        type: 'withdraw',
+        amount: req.amount,
+        timestamp: serverTimestamp()
+      };
+      
+      await update(ref(this.db!), updates);
+    }, { onlyOnce: true });
+  }
+
+  async rejectRequest(myId: string, req: FriendRequest) {
+    if (!this.db) return;
+    
+    const updates: any = {};
+    updates[`requests/${myId}/${req.id}`] = null;
+    
+    // If it's a deposit or withdraw, mark as rejected for player app sync
+    if (req.type === 'deposit' || req.type === 'withdraw') {
+      updates[`transaction_updates/${req.senderId}/${req.id}`] = {
+        status: 'rejected',
+        type: req.type,
+        amount: req.amount,
+        timestamp: serverTimestamp()
+      };
+    }
+    
+    await update(ref(this.db), updates);
   }
 
   async removeContact(myId: string, otherId: string) {

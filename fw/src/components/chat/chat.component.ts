@@ -76,6 +76,29 @@ import { ShareIconComponent } from '../icons/share-icon.component';
              </button>
           </div>
 
+          @if(viewMode() === 'requests') {
+            <div class="flex bg-slate-950 border-b border-slate-900 px-2">
+                <button (click)="requestTab.set('friend')" 
+                    class="flex-1 py-2 text-[10px] font-bold uppercase"
+                    [class.text-amber-400]="requestTab() === 'friend'"
+                    [class.text-slate-600]="requestTab() !== 'friend'">
+                    Friends ({{ getRequestCount('friend') }})
+                </button>
+                <button (click)="requestTab.set('deposit')" 
+                    class="flex-1 py-2 text-[10px] font-bold uppercase"
+                    [class.text-amber-400]="requestTab() === 'deposit'"
+                    [class.text-slate-600]="requestTab() !== 'deposit'">
+                    Deposits ({{ getRequestCount('deposit') }})
+                </button>
+                <button (click)="requestTab.set('withdraw')" 
+                    class="flex-1 py-2 text-[10px] font-bold uppercase"
+                    [class.text-amber-400]="requestTab() === 'withdraw'"
+                    [class.text-slate-600]="requestTab() !== 'withdraw'">
+                    Withdraws ({{ getRequestCount('withdraw') }})
+                </button>
+            </div>
+          }
+
           <div class="flex-1 overflow-y-auto bg-black p-4 space-y-2 min-h-0 overscroll-y-contain">
             
             @if(viewMode() === 'chats') {
@@ -124,28 +147,48 @@ import { ShareIconComponent } from '../icons/share-icon.component';
                 }
             } @else {
                 <!-- Requests List -->
-                @for(req of requests(); track req.senderId) {
-                    <div class="w-full bg-slate-900 border border-slate-800 p-3 rounded-2xl flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 font-black text-sm uppercase shrink-0">
-                             ?
+                @for(req of filteredRequests(); track req.id) {
+                    <div class="w-full bg-slate-900 border border-slate-800 p-3 rounded-2xl flex flex-col gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 font-black text-sm uppercase shrink-0">
+                                 {{ req.type === 'friend' ? '?' : (req.type === 'deposit' ? 'D' : 'W') }}
+                            </div>
+                            <div class="flex-1 text-left">
+                                <span class="font-bold text-slate-200 text-sm block">{{ req.senderName }}</span>
+                                <span class="text-[10px] text-slate-500">
+                                    @if(req.type === 'friend') { sent you a friend request }
+                                    @else if(req.type === 'deposit') { requested to deposit {{ req.amount | number }} MMK }
+                                    @else if(req.type === 'withdraw') { requested to withdraw {{ req.amount | number }} MMK }
+                                </span>
+                            </div>
+                            <div class="flex gap-2">
+                                 <button (click)="rejectRequest(req)" class="w-8 h-8 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 active:bg-rose-500 active:text-white transition-colors">
+                                    <app-x-circle-icon [size]="16"></app-x-circle-icon>
+                                 </button>
+                                 <button (click)="acceptRequest(req)" class="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 active:bg-emerald-500 active:text-white transition-colors">
+                                    <app-check-icon [size]="16"></app-check-icon>
+                                 </button>
+                            </div>
                         </div>
-                        <div class="flex-1 text-left">
-                            <span class="font-bold text-slate-200 text-sm block">{{ req.senderName }}</span>
-                            <span class="text-[10px] text-slate-500">sent you a friend request</span>
-                        </div>
-                        <div class="flex gap-2">
-                             <button (click)="rejectRequest(req)" class="w-8 h-8 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 active:bg-rose-500 active:text-white transition-colors">
-                                <app-x-circle-icon [size]="16"></app-x-circle-icon>
-                             </button>
-                             <button (click)="acceptRequest(req)" class="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 active:bg-emerald-500 active:text-white transition-colors">
-                                <app-check-icon [size]="16"></app-check-icon>
-                             </button>
-                        </div>
+                        
+                        @if(req.type === 'deposit' && req.screenshotUrl) {
+                            <div class="mt-1">
+                                <img [src]="req.screenshotUrl" class="w-full h-32 object-cover rounded-xl border border-slate-700 cursor-pointer" (click)="viewImage.set(req.screenshotUrl)">
+                            </div>
+                        }
+                        
+                        @if(req.type === 'withdraw') {
+                            <div class="bg-slate-800/50 p-2 rounded-xl border border-slate-700 text-[10px] space-y-1">
+                                <div class="flex justify-between"><span class="text-slate-500">Method:</span> <span class="text-slate-300">{{ req.paymentMethod }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-500">Name:</span> <span class="text-slate-300">{{ req.accountName }}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-500">Account:</span> <span class="text-slate-300">{{ req.accountNumber }}</span></div>
+                            </div>
+                        }
                     </div>
                 } @empty {
                     <div class="flex flex-col items-center justify-center h-48 opacity-50">
                         <app-bell-icon [size]="40" class="text-slate-600 mb-2"></app-bell-icon>
-                        <p class="text-sm text-slate-400">No new requests.</p>
+                        <p class="text-sm text-slate-400">No {{ requestTab() }} requests.</p>
                     </div>
                 }
             }
@@ -504,9 +547,18 @@ export class ChatComponent implements AfterViewChecked {
   chatService = inject(ChatService);
   messages = this.chatService.activeMessages;
   requests = this.chatService.incomingRequests;
+
+  filteredRequests = () => {
+    return this.requests().filter(r => r.type === this.requestTab());
+  };
+
+  getRequestCount = (type: string) => {
+    return this.requests().filter(r => r.type === type).length;
+  };
   
   activeChat = signal<ChatContact | null>(null);
   viewMode = signal<'chats' | 'requests'>('chats');
+  requestTab = signal<'friend' | 'deposit' | 'withdraw'>('friend');
   messageInput = signal('');
   
   // Modals
@@ -1201,9 +1253,15 @@ export class ChatComponent implements AfterViewChecked {
   async acceptRequest(req: FriendRequest) {
       const me = this.user();
       try {
-          await this.chatService.acceptFriendRequest(me.id, me.name, req);
-          // Switch to chats tab
-          this.viewMode.set('chats');
+          if (req.type === 'friend') {
+              await this.chatService.acceptFriendRequest(me.id, me.name, req);
+              // Switch to chats tab
+              this.viewMode.set('chats');
+          } else if (req.type === 'deposit') {
+              await this.chatService.acceptDeposit(me.id, req);
+          } else if (req.type === 'withdraw') {
+              await this.chatService.acceptWithdraw(me.id, req);
+          }
       } catch (err) {
           console.error(err);
       }
@@ -1212,7 +1270,7 @@ export class ChatComponent implements AfterViewChecked {
   async rejectRequest(req: FriendRequest) {
       const me = this.user();
       if(confirm('Reject this request?')) {
-          await this.chatService.rejectFriendRequest(me.id, req.senderId);
+          await this.chatService.rejectRequest(me.id, req);
       }
   }
 
